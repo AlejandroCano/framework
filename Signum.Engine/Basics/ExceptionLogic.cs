@@ -165,9 +165,13 @@ namespace Signum.Engine.Basics
                     c.ExecuteNonQuery();
                 }
 
+                var idMax = Database.Query<ExceptionDN>()
+                    .Where(a => !a.Referenced && a.CreationDate < parameters.DateLimit).Max(el => el.Id);
+
                 int deletedExceptions = Database.Query<ExceptionDN>()
                     .Where(a => !a.Referenced && a.CreationDate < parameters.DateLimit)
-                    .UnsafeDeleteChunks(parameters.ChunkSize, parameters.MaxChunks);
+                    .Where(a=>a.Id <= idMax)
+                    .UnsafeDeleteChunks(idMax,parameters.ChunkSize, parameters.MaxChunks);
             }
         }
     }

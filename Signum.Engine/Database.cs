@@ -797,16 +797,37 @@ namespace Signum.Engine
             }
         }
 
-        public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int chunkSize = 10000, int maxQueries = int.MaxValue)
-         where T : IdentifiableEntity
+        //public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int chunkSize = 10000, int maxQueries = int.MaxValue)
+        // where T : IdentifiableEntity
+        //{
+        //    int total = 0;            
+        //    for (int i = 0; i < maxQueries; i++)
+        //    {
+        //        int num = query.Take(chunkSize).UnsafeDelete();
+        //        total += num;
+        //        if (num < chunkSize)
+        //            break;
+        //    }
+        //    return total;
+        //}
+
+        public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int? maxId, int chunkSize, int maxQueries)
+        where T : IdentifiableEntity
         {
-            int total = 0;            
-            for (int i = 0; i < maxQueries; i++)
+            int minId = query.Min(el => el.Id);
+            int total = 0;
+
+            if (maxId == null)
+                maxId = query.Max(el => el.id);
+
+            while (minId <= maxId)
             {
-                int num = query.Take(chunkSize).UnsafeDelete();
-                total += num;
-                if (num < chunkSize)
-                    break;
+                minId += chunkSize;
+
+                if (minId < maxId)
+                    minId = maxId.Value;
+
+               total += query.Where(el=>el.Id < minId).UnsafeDelete();
             }
             return total;
         }
