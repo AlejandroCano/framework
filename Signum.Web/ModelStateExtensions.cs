@@ -21,7 +21,7 @@ namespace Signum.Web
                         modelState.AddModelError(p.Key, v, context.GlobalInputs.TryGetC(p.Key));
         }
 
-        public static void FromDictionary(this ModelStateDictionary modelState, Dictionary<string, List<string>> errors, NameValueCollection form, bool append = false)
+        public static void FromDictionary(this ModelStateDictionary modelState, Dictionary<string, HashSet<string>> errors, NameValueCollection form, bool append = false)
         {
             if (!append)
                 modelState.Clear();
