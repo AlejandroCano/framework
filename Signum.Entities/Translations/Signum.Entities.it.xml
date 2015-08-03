@@ -47,9 +47,9 @@
     <Member Name="DistinctTo" Description="diverso da" />
     <Member Name="EqualTo" Description="uguale a" />
     <Member Name="GreaterThan" Description="maggiore di" />
-    <Member Name="GreaterThanOrEqual" Description="maggiore o uguale a" />
+    <Member Name="GreaterThanOrEqualTo" Description="Maggiore o uguale a" />
     <Member Name="LessThan" Description="minore di" />
-    <Member Name="LessThanOrEqual" Description="minore o uguale a" />
+    <Member Name="LessThanOrEqualTo" Description="Minore o uguale a" />
   </Type>
   <Type Name="ConnectionMessage">
     <Member Name="AConnectionWithTheServerIsNecessaryToContinue" Description="È necessario connettersi al server per continuare" />
@@ -353,9 +353,9 @@
   <Type Name="ValidationMessage">
     <Member Name="_0DoesNotHaveAValid0Format" Description="{{0}} non ha un formato {0} valido " />
     <Member Name="_0HasAnInvalidFormat" Description="{0} ha un formato non valido" />
+    <Member Name="_0HasAPrecissionOf1InsteadOf2" Description="{0} ha un precisione di {1} invece di {2}" />
     <Member Name="_0HasMoreThan0DecimalPlaces" Description="{0} ha più di {0} decimali" />
     <Member Name="_0HasSomeRepeatedElements0" Description="{0} ha alcuni elementi ripetuti: {0}" />
-    <Member Name="_0HasToBe0Than1" Description="{0} deve essere {0} {1}" />
     <Member Name="_0HasToBeBetween0And1" Description="{0} deve essere compreso tra {0} e {1}" />
     <Member Name="_0HasToBeLowercase" Description="{0} deve essere minuscolo" />
     <Member Name="_0HasToBeUppercase" Description="{0} deve essere maiuscola" />
@@ -368,6 +368,7 @@
     <Member Name="_0IsNotAllowedOnState1" Description="{0} non è consentito nello stato {1}" />
     <Member Name="_0IsNotSet" Description="{0} non è impostato" />
     <Member Name="_0IsSet" Description="{0} è impostato" />
+    <Member Name="_0ShouldBe12" Description="{0} deve essere {1} {2}" />
     <Member Name="_0ShouldBeADateInThePast" Description="{0} deve essere una data nel passato" />
     <Member Name="_0ShouldBeGreaterThan1" Description="{0} deve essere maggiore di {1}" />
     <Member Name="_0ShouldBeNull" Description="{0} deve essere null" />
