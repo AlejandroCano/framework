@@ -119,7 +119,7 @@ namespace Signum.Engine
 
                         var changes = Synchronizer.SynchronizeScript(modelIxs, dif.Indices,
                             null,
-                            (i, dix) => dix.IsControlledIndex && SafeConsole.Ask(ref removeExtraControlledIndexes, "Remove extra controlled index {0} in {1}?".FormatWith(dix.IndexName, tab.Name)) || dix.Columns.Any(removedColums.Contains) ? SqlBuilder.DropIndex(dif.Name, dix) : null,
+                            (i, dix) => dix.Columns.Any(removedColums.Contains) || dix.IsControlledIndex && SafeConsole.Ask(ref removeExtraControlledIndexes, "Remove extra controlled index {0} in {1}?".FormatWith(dix.IndexName, tab.Name)) ? SqlBuilder.DropIndex(dif.Name, dix) : null,
                             (i, mix, dix) => (mix as UniqueIndex).Try(u => u.ViewName) != dix.ViewName || columnsChanged(dif, dix, mix) ? SqlBuilder.DropIndex(dif.Name, dix) : null,
                             Spacing.Simple);
 
@@ -493,18 +493,27 @@ JOIN {3} {4} ON {2}.{0} = {4}.Id".FormatWith(tabCol.Name,
 
                     if (middleByName.Any())
                     {
-                        var moveToAux = SyncEnums(schema, table, currentByName.Where(a => middleByName.ContainsKey(a.Key)).ToDictionary(), middleByName);
+                        var moveToAux = SyncEnums(schema, table, 
+                            currentByName.Where(a => middleByName.ContainsKey(a.Key)).ToDictionary(), 
+                            middleByName);
                         if (moveToAux != null)
                             commands.Add(moveToAux);
                     }
 
-                    var currentMiddleByName = currentByName.ToDictionary();
-
-                    currentMiddleByName.SetRange(middleByName);
-
-                    var com = SyncEnums(schema, table, currentMiddleByName, shouldByName);
+                    var com = SyncEnums(schema, table, 
+                        currentByName.Where(a=>!middleByName.ContainsKey(a.Key)).ToDictionary(), 
+                        shouldByName.Where(a=>!middleByName.ContainsKey(a.Key)).ToDictionary());
                     if (com != null)
                         commands.Add(com);
+
+                    if (middleByName.Any())
+                    {
+                        var backFromAux = SyncEnums(schema, table, 
+                            middleByName,
+                            shouldByName.Where(a => middleByName.ContainsKey(a.Key)).ToDictionary());
+                        if (backFromAux != null)
+                            commands.Add(backFromAux);
+                    }
                 }
             }
 
@@ -513,11 +522,18 @@ JOIN {3} {4} ON {2}.{0} = {4}.Id".FormatWith(tabCol.Name,
 
         private static SqlPreCommand SyncEnums(Schema schema, Table table, Dictionary<string, Entity> current, Dictionary<string, Entity> should)
         {
-            return Synchronizer.SynchronizeScript(
+            var deletes = Synchronizer.SynchronizeScript(
                        should,
                        current,
-                       (str, s) => table.InsertSqlSync(s),
+                       null,
                        (str, c) => table.DeleteSqlSync(c, comment: c.toStr),
+                       null, Spacing.Double);
+
+            var moves = Synchronizer.SynchronizeScript(
+                       should,
+                       current,
+                       null,
+                       null,
                        (str, s, c) =>
                        {
                            if (s.id == c.id)
@@ -536,6 +552,15 @@ JOIN {3} {4} ON {2}.{0} = {4}.Id".FormatWith(tabCol.Name,
 
                            return SqlPreCommand.Combine(Spacing.Simple, insert, move, delete);
                        }, Spacing.Double);
+
+            var creates = Synchronizer.SynchronizeScript(
+                   should,
+                   current,
+                  (str, s) => table.InsertSqlSync(s),
+                   null,
+                   null, Spacing.Double);
+
+            return SqlPreCommand.Combine(Spacing.Double, deletes, moves, creates);
         }
 
         private static Entity Clone(Entity current)

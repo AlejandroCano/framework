@@ -711,7 +711,7 @@ namespace Signum.Engine.Maps
         private SchemaName GetSchemaName(TableNameAttribute tn)
         {
             ServerName server = tn.ServerName == null ? null : new ServerName(tn.ServerName);
-            DatabaseName dataBase = tn.DatabaseName == null && server == null ? null : new DatabaseName(server, tn.ServerName);
+            DatabaseName dataBase = tn.DatabaseName == null && server == null ? null : new DatabaseName(server, tn.DatabaseName);
             SchemaName schema = tn.SchemaName == null && dataBase == null ? SchemaName.Default : new SchemaName(dataBase, tn.SchemaName);
             return schema;
         }
@@ -734,7 +734,7 @@ namespace Signum.Engine.Maps
                     return type.Name.FirstUpper();
                 case KindOfField.Enum:
                 case KindOfField.Reference:
-                    return "id" + (EnumEntity.Extract(type).Try(t => t.Name) ?? Reflector.CleanTypeName(type));
+                    return (EnumEntity.Extract(type).Try(t => t.Name) ?? Reflector.CleanTypeName(type)) + "ID";
                 default:
                     throw new InvalidOperationException("No field name for type {0} defined".FormatWith(type));
             }
@@ -754,7 +754,7 @@ namespace Signum.Engine.Maps
                     return name;
                 case KindOfField.Reference:
                 case KindOfField.Enum:
-                    return "id" + name;
+                    return name + "ID";
                 default:
                     throw new InvalidOperationException("No name for {0} defined".FormatWith(route.FieldInfo.Name));
             }
@@ -762,7 +762,7 @@ namespace Signum.Engine.Maps
 
         public virtual string GenerateBackReferenceName(Type type, BackReferenceColumnNameAttribute attribute)
         {
-            return attribute.Try(a => a.Name) ?? "idParent";
+            return attribute.Try(a => a.Name) ?? "ParentID";
         }
         #endregion
 
