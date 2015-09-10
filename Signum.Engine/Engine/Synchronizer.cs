@@ -309,9 +309,10 @@ namespace Signum.Engine
 
             while (true)
             {
-                string answer = Console.ReadLine();
-                
-                 answer= answer.ToLower();
+               //  string answer = Console.ReadLine();
+                string answer = "n";
+
+                 answer = answer.ToLower();
 
                 if (answer == "+" && remaining > 0)
                 {
