@@ -30,8 +30,8 @@ namespace Signum.Web.Operations
         {
             Manager = operationManager;
 
-            UrlsRepository.DefaultSFUrls.AddRange(new Dictionary<string, Func<UrlHelper, string>> 
-            { 
+            UrlsRepository.DefaultSFUrls.AddRange(new Dictionary<string, Func<UrlHelper, string>>
+            {
                 { "operationExecute", url =>url.Action((OperationController c)=>c.Execute()) },
                 { "operationExecuteMultiple", url =>url.Action((OperationController c)=>c.ExecuteMultiple()) },
                 { "operationDelete", url =>url.Action((OperationController c)=>c.Delete()) },
@@ -117,7 +117,7 @@ namespace Signum.Web.Operations
                 if (!entity.IsNew)
                 {
                     string newUrl = Navigator.NavigateRoute(entity);
-                    if (!request.UrlReferrer.AbsolutePath.Contains(newUrl) && !request[ViewDataKeys.AvoidReturnRedirect].HasText())
+                    if (request.UrlReferrer == null || !request.UrlReferrer.AbsolutePath.Contains(newUrl) && !request[ViewDataKeys.AvoidReturnRedirect].HasText())
                         return controller.RedirectHttpOrAjax(newUrl);
                 }
 
@@ -153,7 +153,7 @@ namespace Signum.Web.Operations
                 return controller.JsonNet(new MessageBoxOptions
                 {
                     prefix = newPrefix,
-                    message = OperationMessage.TheOperation0DidNotReturnAnEntity.NiceToString(operation.Try(o=>o.NiceToString())),
+                    message = OperationMessage.TheOperation0DidNotReturnAnEntity.NiceToString(operation.Try(o => o.NiceToString())),
                 });
             }
 
@@ -246,7 +246,7 @@ namespace Signum.Web.Operations
             return null;
         }
 
-       
+
         ConcurrentDictionary<Type, List<OperationInfo>> operationInfoCache = new ConcurrentDictionary<Type, List<OperationInfo>>();
         public IEnumerable<OperationInfo> OperationInfos(Type entityType)
         {
@@ -343,7 +343,7 @@ namespace Signum.Web.Operations
         }
 
 
-        public Func<ToolBarButton, ToolBarButton> CustomizeToolBarButton; 
+        public Func<ToolBarButton, ToolBarButton> CustomizeToolBarButton;
         protected internal virtual ToolBarButton CreateToolBarButton(IEntityOperationContext ctx, EntityOperationGroup group)
         {
             var result = new ToolBarButton(ctx.Context.Prefix, ctx.OperationInfo.OperationSymbol.Key.Replace(".", "_"))
@@ -390,7 +390,7 @@ namespace Signum.Web.Operations
              new GenericInvoker<Func<OperationInfo, ClientConstructorContext, ConstructorOperationSettingsBase, IClientConstructorOperationContext>>((oi, cctx, settings) =>
                 new ClientConstructorOperationContext<Entity>(oi, cctx, (ConstructorOperationSettings<Entity>)settings));
 
-    
+
 
         protected internal JsFunction ClientConstruct(ClientConstructorContext ctx)
         {
@@ -424,7 +424,7 @@ namespace Signum.Web.Operations
         });
     });
 }".Replace("{moduleNames}", func.Module.Name)
- .Replace("{moduleVars}",  JsFunction.VarName(func.Module))
+ .Replace("{moduleVars}", JsFunction.VarName(func.Module))
  .Replace("{functionName}", func.FunctionName)
  .Replace("{arguments}", func.Arguments.ToString(a => a == ClientConstructorManager.ExtraJsonParams ? "extraArgs" : JsonConvert.SerializeObject(a, func.JsonSerializerSettings), ", "));
         }
@@ -495,7 +495,7 @@ namespace Signum.Web.Operations
                 let os = GetSettings<ContextualOperationSettingsBase>(type, oi.OperationSymbol)
                 let coc = newContextualOperationContext.GetInvoker(os.Try(a => a.OverridenType) ?? oi.BaseType)(ctx, oi, os, null)
                 where os == null || !os.HasIsVisible || os.OnIsVisible(coc)
-                 select CreateContextual(coc, _coc => JsModule.Operations["constructFromManyDefault"](_coc.Options(), JsFunction.Event)))
+                select CreateContextual(coc, _coc => JsModule.Operations["constructFromManyDefault"](_coc.Options(), JsFunction.Event)))
                  .OrderBy(a => a.Order)
                  .Cast<IMenuItem>()
                  .ToList();
@@ -526,7 +526,7 @@ namespace Signum.Web.Operations
                            where oi.IsEntityOperation
                            let os = GetSettings<EntityOperationSettingsBase>(type, oi.OperationSymbol)
                            let osc = os == null ? null :
-                                     ctx.Lites.Count == 1 ? os.ContextualUntyped: os.ContextualFromManyUntyped
+                                     ctx.Lites.Count == 1 ? os.ContextualUntyped : os.ContextualFromManyUntyped
                            let coc = newContextualOperationContext.GetInvoker(os.Try(o => o.OverridenType) ?? type)(ctx, oi, osc, os)
                            let defaultBehaviour = oi.Lite == true && (ctx.Lites.Count == 1 || oi.OperationType != OperationType.ConstructorFrom)
                            where os == null ? defaultBehaviour :
@@ -537,7 +537,7 @@ namespace Signum.Web.Operations
             if (context.IsEmpty())
                 return null;
 
-            if(ctx.Lites.Count == 1)
+            if (ctx.Lites.Count == 1)
             {
                 if (context.Any(eomi => eomi.OperationInfo.HasCanExecute == true))
                 {
