@@ -103,10 +103,7 @@ namespace Signum.Engine
                         return SqlBuilder.DropStatistics(tn, dif.Stats.Where(a => a.Columns.Any(removedColums.Contains)).ToList());
                     },
                      Spacing.Double);
-
-
-                bool? removeExtraControlledIndexes = null;
-
+                
                 SqlPreCommand dropIndices =
                     Synchronizer.SynchronizeScript(model, database,
                      null,
@@ -119,7 +116,7 @@ namespace Signum.Engine
 
                         var changes = Synchronizer.SynchronizeScript(modelIxs, dif.Indices,
                             null,
-                            (i, dix) => dix.Columns.Any(removedColums.Contains) || dix.IsControlledIndex && SafeConsole.Ask(ref removeExtraControlledIndexes, "Remove extra controlled index {0} in {1}?".FormatWith(dix.IndexName, tab.Name)) ? SqlBuilder.DropIndex(dif.Name, dix) : null,
+                            (i, dix) => dix.Columns.Any(removedColums.Contains) || dix.IsControlledIndex ? SqlBuilder.DropIndex(dif.Name, dix) : null,
                             (i, mix, dix) => (mix as UniqueIndex).Try(u => u.ViewName) != dix.ViewName || columnsChanged(dif, dix, mix) ? SqlBuilder.DropIndex(dif.Name, dix) : null,
                             Spacing.Simple);
 
@@ -342,7 +339,7 @@ namespace Signum.Engine
 
             return new SqlPreCommandSimple(
 @"UPDATE {2}
-SET {0} = GetId{5}({4}.Id)
+SET {0} =  -- get {5} id from {4}.Id
 FROM {1} {2}
 JOIN {3} {4} ON {2}.{0} = {4}.Id".FormatWith(tabCol.Name,
                 tn, ag.NextTableAlias(tn),
