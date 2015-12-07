@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Reflection;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 
 namespace Signum.Utilities
 {
@@ -50,7 +51,7 @@ namespace Signum.Utilities
             using (StreamWriter sw = new StreamWriter(stream, encoding) { AutoFlush = autoFlush })
             {
                 if (writeHeaders)
-                    sw.WriteLine(members.ToString(m => HandleSpaces(m.Name), separator));
+                    sw.WriteLine(members.ToString(FormatHeader, separator));
 
                 foreach (var item in collection)
                 {
@@ -109,9 +110,18 @@ namespace Signum.Utilities
                 return obj.ToString();
         }
 
-        static string HandleSpaces(string p)
+        static string FormatHeader<T>(MemberEntry<T> me)
         {
-            return p.Replace("__", "^").Replace("_", " ").Replace("^", "_");
+            var columnName = me.Name;
+
+            if (me.MemberInfo.HasAttribute<DescriptionAttribute>())
+            {
+                var attr = me.MemberInfo.GetCustomAttributes(typeof(DescriptionAttribute), false).Cast<DescriptionAttribute>().SingleEx();
+
+                columnName = attr.Description;
+            }
+
+            return columnName.Replace("__", "^").Replace("_", " ").Replace("^", "_");
         }
 
         public static List<T> ReadFile<T>(string fileName, Encoding encoding = null, CultureInfo culture = null, int skipLines = 1,

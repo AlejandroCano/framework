@@ -681,7 +681,7 @@ namespace Signum.Engine
 
                 var entity = arguments[0];
 
-                if(entity.Type.IsLite())
+                if (entity.Type.IsLite())
                     prop = Expression.Call(miToLite.MakeGenericMethod(prop.Type), prop);
 
                 var lambda = Expression.Lambda(Expression.Equal(prop, entity), p);
@@ -838,16 +838,43 @@ namespace Signum.Engine
             }
         }
 
-        public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int chunkSize = 10000, int maxQueries = int.MaxValue)
-         where T : Entity
+        //public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int chunkSize = 10000, int maxQueries = int.MaxValue)
+        // where T : IdentifiableEntity
+        //{
+        //    int total = 0;            
+        //    for (int i = 0; i < maxQueries; i++)
+        //    {
+        //        int num = query.Take(chunkSize).UnsafeDelete();
+        //        total += num;
+        //        if (num < chunkSize)
+        //            break;
+        //    }
+        //    return total;
+        //}
+
+        public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int? maxId, int chunkSize, int maxQueries)
+        where T : IdentifiableEntity
         {
-            int total = 0;            
-            for (int i = 0; i < maxQueries; i++)
+            int total = 0;
+            if (query.Any())
             {
-                int num = query.Take(chunkSize).UnsafeDelete();
-                total += num;
-                if (num < chunkSize)
-                    break;
+                int minId = query.Min(el => el.Id);
+
+                int executedQuery = 0;
+
+                if (maxId == null)
+                    maxId = query.Max(el => el.id);
+
+                while (minId < maxId && executedQuery < maxQueries)
+                {
+                    minId += chunkSize;
+
+                    if (minId > maxId)
+                        minId = maxId.Value;
+
+                    total += query.Where(el => el.Id < minId).UnsafeDelete();
+                    executedQuery += 1;
+                }
             }
             return total;
         }
@@ -907,7 +934,7 @@ namespace Signum.Engine
                     return tr.Commit(rows);
                 }
             }
-        } 
+        }
         #endregion
 
         #region UnsafeInsert
@@ -934,8 +961,8 @@ namespace Signum.Engine
             }
         }
 
-         
-        public static int UnsafeInsertMList<T, E, V>(this IQueryable<T> query, Expression<Func<E, MList<V>>> mListProperty,  Expression<Func<T, MListElement<E, V>>> constructor)
+
+        public static int UnsafeInsertMList<T, E, V>(this IQueryable<T> query, Expression<Func<E, MList<V>>> mListProperty, Expression<Func<T, MListElement<E, V>>> constructor)
                where E : Entity
         {
             using (HeavyProfiler.Log("DBUnsafeInsert", () => typeof(E).TypeName()))
@@ -948,7 +975,9 @@ namespace Signum.Engine
 
                 using (Transaction tr = new Transaction())
                 {
+                    Schema.Current.OnPreUnsafeInsert(typeof(E), query, constructor, query.Select(constructor).Select(c=>c.Parent));
                     constructor = (Expression<Func<T, MListElement<E, V>>>)Schema.Current.OnPreUnsafeInsert(typeof(E), query, constructor, query.Select(constructor).Select(c => c.Parent));
+                    Schema.Current.OnPreUnsafeInsert(typeof(E), query, constructor, query.Select(constructor).Select(c => c.Parent));
                     var table = ((FieldMList)Schema.Current.Field(mListProperty)).TableMList;
                     int rows = DbQueryProvider.Single.Insert(query, constructor, table, sql => (int)sql.ExecuteScalar());
 
@@ -986,9 +1015,9 @@ namespace Signum.Engine
 
     public interface IUpdateable
     {
-        IQueryable Query{ get; }
+        IQueryable Query { get; }
         LambdaExpression PartSelector { get; }
-        IEnumerable<SetterExpressions> SetterExpressions{ get; }
+        IEnumerable<SetterExpressions> SetterExpressions { get; }
 
         Type EntityType { get; }
 
@@ -1006,9 +1035,9 @@ namespace Signum.Engine
     }
 
     class UpdateablePart<A, T> : IUpdateablePart<A, T>
-    { 
+    {
         IQueryable<A> query;
-        Expression<Func<A, T>> partSelector; 
+        Expression<Func<A, T>> partSelector;
         ReadOnlyCollection<SetterExpressions> settersExpressions;
 
         public UpdateablePart(IQueryable<A> query, Expression<Func<A, T>> partSelector, IEnumerable<SetterExpressions> setters)
@@ -1112,7 +1141,7 @@ namespace Signum.Engine
 
 
             this.PropertyExpression = propertyExpression;
-            this.ValueExpression = valueExpression; 
+            this.ValueExpression = valueExpression;
         }
     }
 

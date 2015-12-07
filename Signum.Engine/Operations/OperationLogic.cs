@@ -158,7 +158,16 @@ namespace Signum.Engine.Operations
 
         public static void ExceptionLogic_DeleteLogs(DeleteLogParametersDN parameters)
         {
-            Database.Query<OperationLogDN>().Where(o => o.Start < parameters.DateLimit).UnsafeDeleteChunks(parameters.ChunkSize, parameters.MaxChunks);
+            int idMax;
+
+            using (var tr = Transaction.ForceNew())
+            {
+                idMax = Database.Query<OperationLogDN>().Where(o => o.Start < parameters.DateLimit).Max(el => el.Id);
+                tr.Commit();
+            }
+
+            Database.Query<OperationLogDN>().Where(o => o.Start < parameters.DateLimit)
+                  .Where(el => el.Id < idMax).UnsafeDeleteChunks(idMax, parameters.ChunkSize, parameters.MaxChunks);
         }
 
         static void OperationLogic_Initializing()
