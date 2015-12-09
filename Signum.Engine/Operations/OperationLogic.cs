@@ -162,7 +162,7 @@ namespace Signum.Engine.Operations
 
             using (var tr = Transaction.ForceNew())
             {
-                idMax = Database.Query<OperationLogDN>().Where(o => o.Start < parameters.DateLimit).Max(el => el.Id);
+                idMax = Database.Query<OperationLogDN>().Where(o => o.Start < parameters.DateLimit).Select(el=>(int)el.Id).Max();
                 tr.Commit();
             }
 

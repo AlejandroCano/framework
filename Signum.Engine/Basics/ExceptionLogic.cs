@@ -163,7 +163,7 @@ namespace Signum.Engine.Basics
                 }
 
                 var idMax = Database.Query<ExceptionDN>()
-                    .Where(a => !a.Referenced && a.CreationDate < parameters.DateLimit).Max(el => el.Id);
+                    .Where(a => !a.Referenced && a.CreationDate < parameters.DateLimit).Select(el=>(int)el.Id).Max();
 
                 int deletedExceptions = Database.Query<ExceptionDN>()
                     .Where(a => !a.Referenced && a.CreationDate < parameters.DateLimit)

@@ -853,17 +853,17 @@ namespace Signum.Engine
         //}
 
         public static int UnsafeDeleteChunks<T>(this IQueryable<T> query, int? maxId, int chunkSize, int maxQueries)
-        where T : IdentifiableEntity
+        where T : Entity
         {
             int total = 0;
             if (query.Any())
             {
-                int minId = query.Min(el => el.Id);
+                int minId = query.Select(el=>(int)el.id).Min();
 
                 int executedQuery = 0;
 
                 if (maxId == null)
-                    maxId = query.Max(el => el.id);
+                    maxId = query.Select(el => (int)el.id).Max();
 
                 while (minId < maxId && executedQuery < maxQueries)
                 {
