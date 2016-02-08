@@ -159,20 +159,20 @@ namespace Signum.Utilities.NaturalLanguage
                 decimalPart = ConvertNumber(decim, femenin, settings.DecimalUnit, settings.DecimalUnitPlural);
             }
 
-            return " ".Combine(signo, " con ".Combine(integerPart, decimalPart));
+            return " ".CombineIfNotEmpty(signo, " con ".CombineIfNotEmpty(integerPart, decimalPart));
         }
         private static string ConvertNumber(long num, bool? femenine, string singular, string plural)
         {
             string result = null;
             long numAux = num;
             for (int i = 0; numAux > 0; i++, numAux /= 1000)
-                result = " ".Combine(ConvertTrio((int)(numAux % 1000), i, femenine), " ", result);
+                result = " ".CombineIfNotEmpty(ConvertTrio((int)(numAux % 1000), i, femenine), result);
 
             long numMod1M = num % 1000000;
 
             string separator = numMod1M == 0 && num != 0 ? " de " : " ";
 
-            return separator.Combine(result ?? "cero", numMod1M == 1 ? singular : plural);
+            return separator.CombineIfNotEmpty(result ?? "cero", numMod1M == 1 ? singular : plural);
         }
 
         static string ConvertTrio(int val, int group, bool? femenine)
@@ -190,7 +190,7 @@ namespace Signum.Utilities.NaturalLanguage
 
             string num = CentsDecsUnits(cent, dec, unit, group >= 2 ? null : femenine);
 
-            return " ".Combine(val == 1 && groupName == "mil" ? null : num, groupName);
+            return " ".CombineIfNotEmpty(val == 1 && groupName == "mil" ? null : num, groupName);
         }
 
         static string UnitsGroup(int numGroup, bool plural)
@@ -216,7 +216,7 @@ namespace Signum.Utilities.NaturalLanguage
 
         static string CentsDecsUnits(int centena, int decena, int unidad, bool? femenine)
         {
-            return " ".Combine((centena == 1 && decena == 0 && unidad == 0) ? "cien" : Cents(centena, femenine ?? false), " ",
+            return " ".CombineIfNotEmpty((centena == 1 && decena == 0 && unidad == 0) ? "cien" : Cents(centena, femenine ?? false),
                 DecsUnits(decena, unidad, femenine));
         }
 
@@ -250,7 +250,7 @@ namespace Signum.Utilities.NaturalLanguage
                         default: return "veinti" + Units(unit, femenine);
                     }
                 default:
-                    return " y ".Combine(Decs(decena), Units(unit, femenine));
+                    return " y ".CombineIfNotEmpty(Decs(decena), Units(unit, femenine));
             }
         }
 
