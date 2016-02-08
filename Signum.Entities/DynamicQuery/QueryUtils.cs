@@ -16,6 +16,9 @@ namespace Signum.Entities.DynamicQuery
     {
         public static string GetQueryUniqueKey(object queryName)
         {
+            if (queryName == null)
+                return null;
+
             if (queryName is Type)
                 queryName = EnumEntity.Extract((Type)queryName) ?? (Type)queryName;
 
