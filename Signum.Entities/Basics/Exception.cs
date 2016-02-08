@@ -111,7 +111,7 @@ namespace Signum.Entities.Basics
 
         [SqlDbType(Size = 100)]
         string version;
-        [StringLengthValidator(AllowNulls = false, Min = 3, Max = 100)]
+        [StringLengthValidator(AllowNulls = true, Max = 100)]
         public string Version
         {
             get { return version; }
