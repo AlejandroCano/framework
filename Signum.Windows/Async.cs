@@ -116,9 +116,18 @@ namespace Signum.Windows
                             if (closed != null)
                                 closed(sender, args);
 
-                            ((Window)sender).Dispatcher.InvokeShutdown();
-                            Window rubish;
-                            threadWindows.TryRemove(Thread.CurrentThread, out rubish);
+                            try
+                            {
+                                ((Window)sender).Dispatcher.InvokeShutdown();
+                                Window rubish;
+                                threadWindows.TryRemove(Thread.CurrentThread, out rubish);
+                            }
+                            catch (TaskCanceledException) 
+                            { }
+                            catch
+                            {
+                                throw;
+                            }
                         };
 
                         win.Show();
