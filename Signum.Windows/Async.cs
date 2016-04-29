@@ -116,18 +116,9 @@ namespace Signum.Windows
                             if (closed != null)
                                 closed(sender, args);
 
-                            try
-                            {
-                                ((Window)sender).Dispatcher.InvokeShutdown();
-                                Window rubish;
-                                threadWindows.TryRemove(Thread.CurrentThread, out rubish);
-                            }
-                            catch (TaskCanceledException) 
-                            { }
-                            catch
-                            {
-                                throw;
-                            }
+                            ((Window)sender).Dispatcher.InvokeShutdown();
+                            Window rubish;
+                            threadWindows.TryRemove(Thread.CurrentThread, out rubish);
                         };
 
                         win.Show();
@@ -142,7 +133,7 @@ namespace Signum.Windows
                     }
                     catch (Exception e)
                     {
-                        OnDispatcherUnhandledException(e, threadWindows.TryGetC(Thread.CurrentThread)); 
+                        OnDispatcherUnhandledException(e, threadWindows.TryGetC(Thread.CurrentThread));
                     }
                 });
                 t.SetApartmentState(ApartmentState.STA);
@@ -182,7 +173,7 @@ namespace Signum.Windows
 
             if (win == null)
                 return null;
-            
+
             return win;
         }
     }
