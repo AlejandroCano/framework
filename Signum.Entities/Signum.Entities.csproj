@@ -209,6 +209,7 @@
     <None Include="Lite.md" />
     <None Include="Mixin.md" />
     <None Include="MList.md" />
+    <None Include="packages.config" />
     <None Include="PrimaryKey.md" />
     <None Include="PropertyAttributes.md" />
     <None Include="PropertyRoute.md" />
