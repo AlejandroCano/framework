@@ -12,6 +12,10 @@ namespace Signum.Engine
 {
     public static class Synchronizer
     {
+
+        
+
+
         public static void Synchronize<K, N, O>(
           Dictionary<K, N> newDictionary,
           Dictionary<K, O> oldDictionary,
@@ -272,13 +276,13 @@ namespace Signum.Engine
             return sel.NewValue;
         }
 
-        public static Func<string, List<string>, Selection?> AutoReplacement; 
+        public static Func<string ,string, List<string>, Selection?> AutoReplacement; 
 
         private static Selection SelectInteractive(string oldValue, List<string> newValues, string replacementsKey, bool interactive)
         {
             if (AutoReplacement != null)
             {
-                Selection? selection = AutoReplacement(oldValue, newValues);
+                Selection? selection = AutoReplacement( replacementsKey,oldValue, newValues);
                 if (selection != null)
                 {
                     SafeConsole.WriteLineColor(ConsoleColor.DarkGray, "AutoReplacement:");
@@ -309,6 +313,9 @@ namespace Signum.Engine
 
             while (true)
             {
+
+
+
                 string answer = Console.ReadLine();
                 
                  answer= answer.ToLower();
