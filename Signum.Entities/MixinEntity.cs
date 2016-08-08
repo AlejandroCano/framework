@@ -133,6 +133,15 @@ namespace Signum.Entities
             return GetMixinDeclarations(mainEntity).Contains(mixinType);
         }
 
+        public static M TryGetMixin<M>(this Entity e) where M : MixinEntity
+        {
+            if (!MixinDeclarations.IsDeclared(e.GetType(), typeof(M)))
+                return null;
+
+            return e.Mixin<M>();
+
+        }
+
         public static void AssertDeclared(Type mainEntity, Type mixinType)
         {
             if (!IsDeclared(mainEntity, mixinType))
