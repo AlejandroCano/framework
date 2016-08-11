@@ -37,6 +37,9 @@ namespace Signum.Entities.Basics
 
         public Lite<ExceptionEntity> Exception { get; set; }
 
+        [Ignore]
+        public Exception ExceptionInMemory;
+
         public override string ToString()
         {
             return "{0} {1} {2:d}".FormatWith(Operation, User, Start);

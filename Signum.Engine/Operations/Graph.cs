@@ -491,14 +491,22 @@ namespace Signum.Engine.Operations
                             using (OperationLogic.AllowSave(entity.GetType()))
                             using (OperationLogic.OnSuroundOperation(this, log, entity, args))
                             {
-                                Execute((T)entity, args);
+                                try
+                                {
+                                    Execute((T)entity, args);
 
-                                AssertEntity((T)entity);
+                                    AssertEntity((T)entity);
 
-                                entity.Save(); //Nothing happens if already saved
+                                    entity.Save(); //Nothing happens if already saved
 
-                                log.SetTarget(entity);
-                                log.End = TimeZoneManager.Now;
+                                    log.SetTarget(entity);
+                                    log.End = TimeZoneManager.Now;
+                                }
+                                catch (Exception ex)
+                                {
+                                    log.ExceptionInMemory = ex;
+                                    throw;
+                                }                         
                             }
 
                             using (ExecutionMode.Global())
