@@ -193,9 +193,9 @@ Consider the following options:
         public static event SurroundOperationHandler SurroundOperation;
         public static event AllowOperationHandler AllowOperation;
 
-        internal static IDisposable OnSuroundOperation(IOperation operation, OperationLogEntity log, IEntity entity, object[] args)
+        internal static IDisposable OnSuroundOperation(IOperation operation, OperationLogEntity log, IEntity entity, object[] args, OperationLogException exception)
         {
-            return Disposable.Combine(SurroundOperation, f => f(operation, log, (Entity)entity, args));
+            return Disposable.Combine(SurroundOperation, f => f(operation, log, (Entity)entity, args, exception));
         }
 
         internal static void SetExceptionData(Exception ex, OperationSymbol operationSymbol, IEntity entity, object[] args)
@@ -718,7 +718,7 @@ Consider the following options:
     }
 
 
-    public delegate IDisposable SurroundOperationHandler(IOperation operation, OperationLogEntity log, Entity entity, object[] args);
+    public delegate IDisposable SurroundOperationHandler(IOperation operation, OperationLogEntity log, Entity entity, object[] args, OperationLogException exception);
     public delegate void OperationHandler(IOperation operation, Entity entity);
     public delegate void ErrorOperationHandler(IOperation operation, Entity entity, Exception ex);
     public delegate bool AllowOperationHandler(OperationSymbol operationSymbol, bool inUserInterface);

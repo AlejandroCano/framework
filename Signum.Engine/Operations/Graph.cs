@@ -62,22 +62,32 @@ namespace Signum.Engine.Operations
                     try
                     {
                         using (Transaction tr = new Transaction())
-                        { 
+                        {
+                            OperationLogException memoryException = new OperationLogException();
+
                             T result;
                             using (OperationLogic.AllowSave<T>())
-                            using (OperationLogic.OnSuroundOperation(this, null, log, args))
+                            using (OperationLogic.OnSuroundOperation(this, null, log, args, memoryException))
                             {
-                                result = Construct(args);
-
-                                AssertEntity(result);
-
-                                if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
+                                try
                                 {
-                                    log.SetTarget(result);
-                                    log.End = TimeZoneManager.Now;
+                                    result = Construct(args);
+
+                                    AssertEntity(result);
+
+                                    if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
+                                    {
+                                        log.SetTarget(result);
+                                        log.End = TimeZoneManager.Now;
+                                    }
+                                    else
+                                        log = null;
                                 }
-                                else
-                                    log = null;
+                                catch (Exception ex)
+                                {
+                                    memoryException.Exception = ex;
+                                    throw;
+                                }
                             }
 
                             if (log != null)
@@ -214,23 +224,33 @@ namespace Signum.Engine.Operations
                     {
                         using (Transaction tr = new Transaction())
                         {
+                            OperationLogException memoryException = new OperationLogException();
+
                             T result;
                             using (OperationLogic.AllowSave(origin.GetType()))
                             using (OperationLogic.AllowSave<T>())
-                            using (OperationLogic.OnSuroundOperation(this, log, origin, args))
+                            using (OperationLogic.OnSuroundOperation(this, log, origin, args, memoryException))
                             {
-                                result = Construct((F)origin, args);
-
-                                AssertEntity(result);
-
-                                if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
+                                try
                                 {
-                                    log.End = TimeZoneManager.Now;
-                                    log.SetTarget(result);
+                                    result = Construct((F)origin, args);
+
+                                    AssertEntity(result);
+
+                                    if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
+                                    {
+                                        log.End = TimeZoneManager.Now;
+                                        log.SetTarget(result);
+                                    }
+                                    else
+                                    {
+                                        log = null;
+                                    }
                                 }
-                                else
+                                catch (Exception ex)
                                 {
-                                    log = null;
+                                    memoryException.Exception = ex;
+                                    throw;
                                 }
                             }
 
@@ -336,22 +356,32 @@ namespace Signum.Engine.Operations
                         {
                             T result;
 
+                            OperationLogException memoryException = new OperationLogException();
+
                             using (OperationLogic.AllowSave<F>())
                             using (OperationLogic.AllowSave<T>())
-                            using (OperationLogic.OnSuroundOperation(this, log, null, args))
+                            using (OperationLogic.OnSuroundOperation(this, log, null, args, memoryException))
                             {
-                                result = OnConstruct(lites.Cast<Lite<F>>().ToList(), args);
-
-                                AssertEntity(result);
-
-                                if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
+                                try
                                 {
-                                    log.End = TimeZoneManager.Now;
-                                    log.SetTarget(result);
+                                    result = OnConstruct(lites.Cast<Lite<F>>().ToList(), args);
+
+                                    AssertEntity(result);
+
+                                    if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
+                                    {
+                                        log.End = TimeZoneManager.Now;
+                                        log.SetTarget(result);
+                                    }
+                                    else
+                                    {
+                                        log = null;
+                                    }
                                 }
-                                else
+                                catch (Exception ex)
                                 {
-                                    log = null;
+                                    memoryException.Exception = ex;
+                                    throw;
                                 }
                             }
 
@@ -488,8 +518,10 @@ namespace Signum.Engine.Operations
                     {
                         using (Transaction tr = new Transaction())
                         {
+                            OperationLogException memoryException = new OperationLogException();
+
                             using (OperationLogic.AllowSave(entity.GetType()))
-                            using (OperationLogic.OnSuroundOperation(this, log, entity, args))
+                            using (OperationLogic.OnSuroundOperation(this, log, entity, args, memoryException))
                             {
                                 try
                                 {
@@ -504,7 +536,7 @@ namespace Signum.Engine.Operations
                                 }
                                 catch (Exception ex)
                                 {
-                                    log.ExceptionInMemory = ex;
+                                    memoryException.Exception = ex;
                                     throw;
                                 }                         
                             }
@@ -636,17 +668,27 @@ namespace Signum.Engine.Operations
                         User = UserHolder.Current?.ToLite()
                     };
 
+                    OperationLogException memoryException = new OperationLogException();
+
                     using (OperationLogic.AllowSave(entity.GetType()))
-                    using (OperationLogic.OnSuroundOperation(this, log, entity, args))
+                    using (OperationLogic.OnSuroundOperation(this, log, entity, args, memoryException))
                     {
                         try
                         {
                             using (Transaction tr = new Transaction())
                             {
-                                OnDelete((T)entity, args);
+                                try
+                                {
+                                    OnDelete((T)entity, args);
 
-                                log.SetTarget(entity);
-                                log.End = TimeZoneManager.Now;
+                                    log.SetTarget(entity);
+                                    log.End = TimeZoneManager.Now;
+                                }
+                                catch (Exception ex)
+                                {
+                                    memoryException.Exception = ex;
+                                    throw;
+                                }
 
                                 using (ExecutionMode.Global())
                                     log.Save();
