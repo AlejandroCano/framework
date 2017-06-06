@@ -19,7 +19,7 @@ namespace Signum.Utilities
             threadVariables.AddOrThrow(name, variable, "Thread variable {0} already defined");
             return variable;
         }
-       
+
         public static Dictionary<string, object> ExportThreadContext(bool force = false)
         {
             return threadVariables.Where(t => !t.Value.IsClean && (!t.Value.AvoidExportImport || force)).ToDictionaryEx(kvp => kvp.Key, kvp => kvp.Value.UntypedValue);
@@ -48,7 +48,7 @@ namespace Signum.Utilities
 
         public static void CleanThreadContextAndAssert()
         {
-            string errors = threadVariables.Values.Where(v => !v.IsClean).ToString(v => "{0} contains the non-default value {1}".FormatWith(v.Name, v.UntypedValue), "\r\n");
+            string errors = threadVariables.Values.Where(v => v.UntypedValue != null && !v.IsClean).ToString(v => "{0} contains the non-default value {1}".FormatWith(v.Name, v.UntypedValue), "\r\n");
 
             foreach (var v in threadVariables.Values)
             {
@@ -86,7 +86,7 @@ namespace Signum.Utilities
     {
         string Name { get; }
         object UntypedValue { get; set; }
-        bool IsClean {get;}
+        bool IsClean { get; }
         void Clean();
     }
 
@@ -132,7 +132,7 @@ namespace Signum.Utilities
         public abstract void Clean();
     }
 
-    public interface IThreadVariable: IUntypedVariable
+    public interface IThreadVariable : IUntypedVariable
     {
         bool AvoidExportImport { get; }
     }
@@ -157,7 +157,7 @@ namespace Signum.Utilities
         }
     }
 
-    public abstract class SessionVariable<T>: Variable<T>
+    public abstract class SessionVariable<T> : Variable<T>
     {
         public abstract Func<T> ValueFactory { get; set; }
 
@@ -205,7 +205,7 @@ namespace Signum.Utilities
             }
 
             public override void Clean()
-            {   
+            {
             }
         }
     }
@@ -228,7 +228,7 @@ namespace Signum.Utilities
         class SingletonVariable<T> : SessionVariable<T>
         {
             public override Func<T> ValueFactory { get; set; }
-            
+
             public SingletonVariable(string name)
                 : base(name)
             { }
@@ -247,7 +247,7 @@ namespace Signum.Utilities
 
             public override void Clean()
             {
-                singletonSession.Remove(Name); 
+                singletonSession.Remove(Name);
             }
         }
     }
@@ -276,7 +276,7 @@ namespace Signum.Utilities
         public static IDisposable OverrideSession(Dictionary<string, object> sessionDictionary)
         {
             if (!(Statics.SessionFactory is ScopeSessionFactory))
-                throw new InvalidOperationException("Impossible to OverrideSession because Statics.SessionFactory is not a ScopeSessionFactory"); 
+                throw new InvalidOperationException("Impossible to OverrideSession because Statics.SessionFactory is not a ScopeSessionFactory");
             var old = overridenSession.Value;
             overridenSession.Value = sessionDictionary;
             return new Disposable(() => overridenSession.Value = old);
