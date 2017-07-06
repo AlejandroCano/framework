@@ -107,7 +107,7 @@ namespace Signum.Utilities
             V result;
             if (!dictionary.TryGetValue(key, out result))
                 throw new KeyNotFoundException(messageWithFormat.Formato(key));
-           return result;
+            return result;
         }
 
         public static V GetOrThrow<K, V>(this IDictionary<K, V> dictionary, K key)
@@ -116,6 +116,15 @@ namespace Signum.Utilities
             if (!dictionary.TryGetValue(key, out result))
                 throw new KeyNotFoundException("Key '{0}' ({1}) not found on {2}".Formato(key, key.GetType().TypeName(), dictionary.GetType().TypeName()));
             return result;
+        }
+
+
+        public static void AddOrUpdate<K, V>(this IDictionary<K, V> dictionary, K key, V value)
+        {
+            if (dictionary.ContainsKey(key))
+                dictionary[key] = value;
+            else
+                dictionary.Add(key, value);
         }
 
         public static void AddOrThrow<K, V>(this IDictionary<K, V> dictionary, K key, V value, string messageWithFormat)
@@ -213,7 +222,7 @@ namespace Signum.Utilities
                     throw new InvalidOperationException("Error {0}\r\n Extra: {1}".Formato(errorContext, currentOnly.ToString(", ")));
             else
                 if (shouldOnly.Count != 0)
-                    throw new InvalidOperationException("Error {0}\r\n Missing: {1}".Formato(errorContext, shouldOnly.ToString(", ")));
+                throw new InvalidOperationException("Error {0}\r\n Missing: {1}".Formato(errorContext, shouldOnly.ToString(", ")));
 
             return currentDictionary.ToDictionary(kvp => kvp.Key, kvp => resultSelector(kvp.Value, shouldDictionary[kvp.Key]));
         }
@@ -244,7 +253,7 @@ namespace Signum.Utilities
                     throw new InvalidOperationException("Error {0}\r\n Extra: {1}".Formato(errorContext, currentOnly.ToString(", ")));
             else
                 if (shouldOnly.Count != 0)
-                    throw new InvalidOperationException("Error {0}\r\n Lacking: {1}".Formato(errorContext, shouldOnly.ToString(", ")));
+                throw new InvalidOperationException("Error {0}\r\n Lacking: {1}".Formato(errorContext, shouldOnly.ToString(", ")));
 
             foreach (var kvp in currentDictionary)
             {
@@ -337,7 +346,7 @@ namespace Signum.Utilities
 
         public static void AddRange<K, V>(this IDictionary<K, V> dictionary, IEnumerable<K> keys, IEnumerable<V> values, string errorContext)
         {
-            dictionary.AddRange(keys.ZipStrict(values), t=>t.Item1, t=>t.Item2);
+            dictionary.AddRange(keys.ZipStrict(values), t => t.Item1, t => t.Item2);
         }
 
         public static void AddRange<K, V>(this IDictionary<K, V> dictionary, IEnumerable<KeyValuePair<K, V>> collection)
