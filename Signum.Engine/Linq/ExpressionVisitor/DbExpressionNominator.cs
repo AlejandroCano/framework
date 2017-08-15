@@ -376,15 +376,43 @@ namespace Signum.Engine.Linq
             return result;
         }
 
+        //private Expression TrySqlMonthStart(Expression expression)
+        //{
+        //    Expression expr = Visit(expression);
+        //    if (innerProjection || !Has(expr))
+        //        return null;
+
+        //    Expression result =
+        //        TrySqlFunction(null, SqlFunction.DATEADD, expression.Type, new SqlEnumExpression(SqlEnums.month),
+        //              TrySqlFunction(null, SqlFunction.DATEDIFF, typeof(int), new SqlEnumExpression(SqlEnums.month), new SqlConstantExpression(0), expression),
+        //            new SqlConstantExpression(0));
+
+        //    return Add(result);
+        //}
+
+        private Expression TrySqlSecondStart(Expression expression)
+        {
+            return TrySqlDatePartStart(expression, SqlEnums.second);
+        }
+        private Expression TrySqlMinuteStart(Expression expression)
+        {
+            return TrySqlDatePartStart(expression, SqlEnums.minute);
+        }
+
         private Expression TrySqlMonthStart(Expression expression)
+        {
+            return TrySqlDatePartStart(expression, SqlEnums.month);
+        }
+
+        private Expression TrySqlDatePartStart(Expression expression, SqlEnums part)
         {
             Expression expr = Visit(expression);
             if (innerProjection || !Has(expr))
                 return null;
 
             Expression result =
-                TrySqlFunction(null, SqlFunction.DATEADD, expression.Type, new SqlEnumExpression(SqlEnums.month),
-                      TrySqlFunction(null, SqlFunction.DATEDIFF, typeof(int), new SqlEnumExpression(SqlEnums.month), new SqlConstantExpression(0), expression),
+                TrySqlFunction(null, SqlFunction.DATEADD, expression.Type, new SqlEnumExpression(part),
+                      TrySqlFunction(null, SqlFunction.DATEDIFF, typeof(int), new SqlEnumExpression(part), new SqlConstantExpression(0), expression),
                     new SqlConstantExpression(0));
 
             return Add(result);
