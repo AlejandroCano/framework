@@ -180,10 +180,13 @@ namespace Signum.Entities
                     }
                 }
                 else if (!typeof(ModifiableEntity).IsAssignableFrom(t))
+                {
                     foreach (var prop in t.GetProperties(BindingFlags.Instance | BindingFlags.Public))
                     {
-                        DumpPropertyOrField(prop.PropertyType, prop.Name, prop.GetValue(o, null));
+                        if (prop.Name != "Id")
+                            DumpPropertyOrField(prop.PropertyType, prop.Name, prop.GetValue(o, null));
                     }
+                }
                 else
                     foreach (var field in Reflector.InstanceFieldsInOrder(t).OrderBy(IsMixinField))
                     {
