@@ -746,6 +746,8 @@ namespace Signum.Engine.Maps
             GlobalLazyManager = manager;
         }
 
+        public Dictionary<Type, int> GlobalLazyInvalidations = new Dictionary<Type, int>();
+
         public ResetLazy<T> GlobalLazy<T>(Func<T> func, InvalidateWith invalidateWith, Action onInvalidated = null, LazyThreadSafetyMode mode = LazyThreadSafetyMode.ExecutionAndPublication) where T : class
         {
             var result = Signum.Engine.GlobalLazy.WithoutInvalidations(() =>
@@ -758,7 +760,14 @@ namespace Signum.Engine.Maps
             GlobalLazyManager.AttachInvalidations(this, invalidateWith, (sender, args) =>
             {
                 result.Reset();
+
                 onInvalidated?.Invoke();
+                if (GlobalLazyInvalidations.ContainsKey(result.GetType()))
+                {
+                    GlobalLazyInvalidations[result.GetType()] = GlobalLazyInvalidations[result.GetType()] + 1;
+                }
+                else
+                GlobalLazyInvalidations[result.GetType()]=1;
             });
 
             return result;
