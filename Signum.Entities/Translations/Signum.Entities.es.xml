@@ -198,6 +198,7 @@
     <Member Name="ViewForType0IsNotAllowed" Description="View para el tipo {0} no está permitido" />
   </Type>
   <Type Name="NormalWindowMessage">
+    <Member Name="_0AndClose" Description="{0} y cierre" />
     <Member Name="_0Errors1" Description="{0} Errores: {1}" />
     <Member Name="_1Error" Description="1 Error: {0}" />
     <Member Name="Cancel" Description="Cancelar" />
@@ -227,6 +228,7 @@
     <Member Name="User" Description="Usuario" />
   </Type>
   <Type Name="OperationMessage">
+    <Member Name="Confirm" Description="Confirmar" />
     <Member Name="Create" Description="Crear..." />
     <Member Name="CreateFromRegex" Description="^Crear (.*) desde .*$" />
     <Member Name="InUserInterface" Description="(en interfaz de usuario)" />
@@ -260,6 +262,7 @@
   </Type>
   <Type Name="QueryTokenMessage">
     <Member Name="_0As1" Description="({0} como {1})" />
+    <Member Name="_0HasValue" Description="{0} tiene valor" />
     <Member Name="_0Steps1" Description="paso de {0} {1}" />
     <Member Name="And" Description=" y " />
     <Member Name="AnyEntity" Description="cualquier entidad" />
@@ -275,7 +278,9 @@
     <Member Name="DecimalNumber" Description="número decimal" />
     <Member Name="Embedded0" Description="{0} embebido" />
     <Member Name="GlobalUniqueIdentifier" Description="Identificador único global" />
+    <Member Name="HasValue" Description="Tiene valor" />
     <Member Name="Hour" Description="Hora" />
+    <Member Name="Length" Description="Longitud" />
     <Member Name="ListOf0" Description="lista de {0}" />
     <Member Name="Millisecond" Description="Milisegundo" />
     <Member Name="Minute" Description="Minuto" />
@@ -311,6 +316,7 @@
     <Member Name="Create" Description="Crear" />
     <Member Name="CreateNew0_G" Description="Crear nuev[m:o|f:a] {0}" />
     <Member Name="DeleteFilter" Description="Borrar filtro" />
+    <Member Name="Explore" Description="Explorar" />
     <Member Name="Field" Description="Campo" />
     <Member Name="Filters" Description="Filtros" />
     <Member Name="Find" Description="Buscar" />
@@ -359,9 +365,7 @@
     <Member Name="Key" Description="Clave" />
   </Type>
   <Type Name="SynchronizerMessage">
-    <Member Name="_0HasBeenRenamedIn1" Description="    ¿'{0}' ha sido renombrada en {1}?" />
     <Member Name="EndOfSyncScript" Description="--- FIN DEL SCRIPT DE SINCRONIZACION" />
-    <Member Name="NNone" Description="- n: Ninguno" />
     <Member Name="StartOfSyncScriptGeneratedOn0" Description="--- INICIO DEL SCRIPT DE SINCRONIZACIÓN GENERADO EL {0}" />
   </Type>
   <Type Name="TypeEntity" Description="Tipo">
@@ -398,6 +402,7 @@
     <Member Name="_0ShouldBeNullWhen1IsSet" Description="{0} debe ser nulo si {1} se establece" />
     <Member Name="_0ShouldBeOfType1" Description="{0} debe ser de tipo {1}" />
     <Member Name="_0ShouldHaveJustOneLine" Description="{0} debe tener una sola línea" />
+    <Member Name="_0ShouldNotBeOfType1" Description="{0} no debe ser de tipo {1}" />
     <Member Name="_0ShouldNotHaveFinalSpaces" Description="{0} no debe tener espacios finales" />
     <Member Name="_0ShouldNotHaveInitialSpaces" Description="{0} no debe tener espacios iniciales" />
     <Member Name="Be" Description="ser " />
