@@ -1,7 +1,7 @@
 ﻿// tsconfig.json
 {
   "compilerOptions": {
-    //"outDir": "D:\\Signum\\Shop\\Framework\\Signum.Web\\Signum\\Scripts",
+    //"outDir": "./Signum/Scripts",
     "module": "amd",
     "sourceMap": true,
     "target": "es5",
