@@ -2,11 +2,9 @@
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\..\packages\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.1.0.5\build\net45\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.props" Condition="Exists('..\..\packages\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.1.0.5\build\net45\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.props')" />
   <Import Project="..\..\packages\Microsoft.Net.Compilers.2.2.0\build\Microsoft.Net.Compilers.props" Condition="Exists('..\..\packages\Microsoft.Net.Compilers.2.2.0\build\Microsoft.Net.Compilers.props')" />
-  
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\TypeScript\Microsoft.TypeScript.Default.props" Condition="Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\TypeScript\Microsoft.TypeScript.Default.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
- 
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
@@ -353,36 +351,6 @@
     <TypeScriptCompile Include="Signum\Scripts\Validator.ts" />
     <TypeScriptCompile Include="Signum\Scripts\Navigator.ts" />
     <TypeScriptCompile Include="Signum\Scripts\Entities.ts" />
-    <EmbeddedResource Include="Signum\Scripts\Entities.js">
-      <DependentUpon>Entities.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\Finder.js">
-      <DependentUpon>Finder.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\globals.js">
-      <DependentUpon>globals.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\Lines.js">
-      <DependentUpon>Lines.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\Navigator.js">
-      <DependentUpon>Navigator.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\Operations.js">
-      <DependentUpon>Operations.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\Polyfills.js">
-      <DependentUpon>Polyfills.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\SF.js">
-      <DependentUpon>SF.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\SF.UI.js">
-      <DependentUpon>SF.UI.ts</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Signum\Scripts\Validator.js">
-      <DependentUpon>Validator.ts</DependentUpon>
-    </EmbeddedResource>
     <Content Include="Signum\Views\Exception.cshtml">
       <Generator>RazorGenerator</Generator>
       <LastGenOutput>Exception.generated.cs</LastGenOutput>
