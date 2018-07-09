@@ -178,6 +178,7 @@
     <Compile Include="MessageBoxOptions.cs" />
     <Compile Include="Widgets\LinksClient.cs" />
     <Compile Include="Widgets\WidgetsHelper.cs" />
+    <Content Include="gulpfile.js" />
     <Content Include="Signum\Content\Search.css" />
     <Content Include="Signum\Content\Widgets.css" />
     <Compile Include="Signum\Views\DeleteLogParameters.generated.cs">
@@ -371,6 +372,7 @@
       <LastGenOutput>FilterRows.generated.cs</LastGenOutput>
       <CustomToolNamespace>Signum.Web.Views</CustomToolNamespace>
     </Content>
+    <Content Include="package.json" />
     <None Include="Signum\Views\PaginationSelector.cshtml">
       <Generator>RazorGenerator</Generator>
       <LastGenOutput>PaginationSelector.generated.cs</LastGenOutput>
