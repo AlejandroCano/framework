@@ -73,9 +73,7 @@ namespace Signum.Engine
 
         #region Retrieve
 
-
-
-        public static T Retrieve<T>(this Lite<T> lite) where T : class, IEntity
+        public static T RetrieveAndHold<T>(this Lite<T> lite) where T : class, IEntity
         {
             if (lite == null)
                 throw new ArgumentNullException("lite");
@@ -84,6 +82,14 @@ namespace Signum.Engine
                 lite.SetEntity(Retrieve(lite.EntityType, lite.Id));
 
             return lite.EntityOrNull;
+        }
+
+        public static T Retrieve<T>(this Lite<T> lite) where T : class, IEntity
+        {
+            if (lite == null)
+                throw new ArgumentNullException("lite");
+
+            return (T)(object)Retrieve(lite.EntityType, lite.Id);
         }
 
         public static T RetrieveAndForget<T>(this Lite<T> lite) where T : class, IEntity
