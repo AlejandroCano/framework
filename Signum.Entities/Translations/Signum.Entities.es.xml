@@ -294,6 +294,7 @@
     <Member Name="Count" Description="[Num]" />
     <Member Name="Date" Description="Fecha" />
     <Member Name="DateTime" Description="fecha y hora" />
+    <Member Name="DateTimeOffset" Description="fecha y hora con zona horaria" />
     <Member Name="Day" Description="Dia" />
     <Member Name="DayOfWeek" Description="Día de la semana" />
     <Member Name="DayOfYear" Description="Día del año" />
