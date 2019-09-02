@@ -300,4 +300,13 @@ Lose changes?")]
         [Description("-")]
         Instance
     }
+
+    [DescriptionOptions(DescriptionOptions.Members)]
+    public enum BooleanEnum
+    {
+        [Description("No")]
+        False = 0,
+        [Description("Yes")]
+        True = 1,
+    }
 }

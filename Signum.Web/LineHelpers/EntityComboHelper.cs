@@ -90,7 +90,11 @@ namespace Signum.Web
             List<SelectListItem> items = new List<SelectListItem>();
             items.Add(new SelectListItem() { Text = "-", Value = "" });
 
-            IEnumerable<Lite<IEntity>> data = entityCombo.Data ?? AutocompleteUtils.FindAllLite(entityCombo.Implementations.Value);
+            List<Lite<IEntity>> data = entityCombo.Data != null ? entityCombo.Data.ToList() :
+                AutocompleteUtils.FindAllLite(entityCombo.Implementations.Value).Cast<Lite<IEntity>>().ToList();
+
+            if (entityCombo.SortElements)
+                data = data.OrderBy(a => a.ToString()).ToList();
 
             var current = entityCombo.UntypedValue is IEntity ? ((IEntity)entityCombo.UntypedValue).ToLite() :
                 entityCombo.UntypedValue as Lite<IEntity>;
