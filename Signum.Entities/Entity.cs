@@ -143,6 +143,19 @@ namespace Signum.Entities
                 .Formato(typeof(M).TypeName(), GetType().TypeName()));
         }
 
+        public M TryMixin<M>() where M : MixinEntity
+        {
+            var current = mixin;
+            while (current != null)
+            {
+                if (current is M)
+                    return (M)current;
+                current = current.Next;
+            }
+
+            return null;
+        }
+
         public MixinEntity GetMixin(Type mixinType)
         {
             var current = mixin;
@@ -211,6 +224,23 @@ namespace Signum.Entities
 
     }
 
-   
+    public static class UnsafeEntityExtensions
+    {
+        public static T SetNotModified<T>(this T ident)
+            where T : Modifiable
+        {
+            if (ident is Entity)
+                ((Entity)(Modifiable)ident).IsNew = false;
+            ident.Modified = ModifiedState.Clean;
+            return ident;
+        }
+
+        public static T SetModified<T>(this T ident)
+            where T : Modifiable
+        {
+            ident.Modified = ModifiedState.SelfModified;
+            return ident;
+        }
+    }
 
 }
