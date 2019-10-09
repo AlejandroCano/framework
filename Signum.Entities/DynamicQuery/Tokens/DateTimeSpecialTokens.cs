@@ -304,5 +304,81 @@ namespace Signum.Entities.DynamicQuery
         {
             return new WeekNumberToken(Parent.Clone());
         }
-    }   
+    }
+
+    [Serializable]
+    public class MonthAndDayToken : QueryToken
+    {
+        internal MonthAndDayToken(QueryToken parent)
+            : base(parent)
+        {
+            
+        }
+
+        public override Type Type
+        {
+            get { return typeof(string); }
+        }
+
+        public override string ToString()
+        {
+            return QueryTokenMessage.MonthAndDay.NiceToString();
+        }
+
+        public override string Key
+        {
+            get { return "MonthAndDay"; }
+        }
+
+        static MethodInfo miMonthAndDay = ReflectionTools.GetMethodInfo(() => DateTimeExtensions.MonthAndDay(DateTime.MinValue));
+
+        protected override Expression BuildExpressionInternal(BuildExpressionContext context)
+        {
+            var exp = Parent.BuildExpression(context);
+
+            return Expression.Call(miMonthAndDay, exp.UnNullify()).Nullify();
+        }
+
+        protected override List<QueryToken> SubTokensOverride(SubTokensOptions options)
+        {
+            return SubTokensBase(typeof(string), options, GetImplementations());
+        }
+
+        public override Implementations? GetImplementations()
+        {
+            return null;
+        }
+
+        public override string Format
+        {
+            get { return null; }
+        }
+
+        public override string Unit
+        {
+            get { return null; }
+        }
+
+        public override string IsAllowed()
+        {
+            PropertyRoute route = GetPropertyRoute();
+
+            return Parent.IsAllowed();
+        }
+
+        public override PropertyRoute GetPropertyRoute()
+        {
+            return Parent.GetPropertyRoute();
+        }
+
+        public override string NiceName()
+        {
+            return QueryTokenMessage.MonthAndDay.NiceToString() + QueryTokenMessage.Of.NiceToString() + Parent.ToString();
+        }
+
+        public override QueryToken Clone()
+        {
+            return new MonthAndDayToken(Parent.Clone());
+        }
+    }
 }

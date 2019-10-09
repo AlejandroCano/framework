@@ -172,6 +172,7 @@ namespace Signum.Entities.DynamicQuery
                 new NetPropertyToken(parent, ReflectionTools.GetPropertyInfo((DateTime dt)=>dt.Day), utc + QueryTokenMessage.Day.NiceToString()),
                 new DayOfYearToken(parent), 
                 new DayOfWeekToken(parent), 
+                new MonthAndDayToken(parent),
                 new DateToken(parent), 
                 precission < DateTimePrecision.Hours ? null: new NetPropertyToken(parent, ReflectionTools.GetPropertyInfo((DateTime dt)=>dt.Hour), utc + QueryTokenMessage.Hour.NiceToString()), 
                 precission < DateTimePrecision.Minutes ? null: new NetPropertyToken(parent, ReflectionTools.GetPropertyInfo((DateTime dt)=>dt.Minute), utc + QueryTokenMessage.Minute.NiceToString()), 
@@ -368,6 +369,7 @@ namespace Signum.Entities.DynamicQuery
         Day,
         DayOfWeek,
         DayOfYear,
+        MonthAndDay,
         [Description("decimal number")]
         DecimalNumber,
         [Description("embedded {0}")]

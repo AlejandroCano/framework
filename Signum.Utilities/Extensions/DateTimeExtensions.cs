@@ -332,7 +332,12 @@ namespace Signum.Utilities
         {
             var cc = CultureInfo.CurrentCulture;
 
-            return cc.Calendar.GetWeekOfYear(dateTime, CalendarWeekRule.FirstDay, cc.DateTimeFormat.FirstDayOfWeek); 
+            return cc.Calendar.GetWeekOfYear(dateTime, CalendarWeekRule.FirstDay, cc.DateTimeFormat.FirstDayOfWeek);
+        }
+
+        public static string MonthAndDay(this DateTime dateTime)
+        {
+            return dateTime.ToString("MM-dd");
         }
     }
 
