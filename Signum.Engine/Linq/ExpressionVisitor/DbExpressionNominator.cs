@@ -1094,6 +1094,7 @@ namespace Signum.Engine.Linq
                 case "DateTimeExtensions.MonthsTo": return TryDatePartTo(new SqlEnumExpression(SqlEnums.month), m.GetArgument("start"), m.GetArgument("end"));
 
                 case "DateTimeExtensions.WeekNumber": return TrySqlFunction(null, SqlFunction.DATEPART, m.Type, new SqlEnumExpression(SqlEnums.week), m.Arguments.Single());
+                case "DateTimeExtensions.MonthAndDay": return TrySqlFunction(null, SqlFunction.FORMAT, m.Type, m.Arguments.Single(), new SqlConstantExpression("MM-dd"));
 
                 case "Math.Sign": return TrySqlFunction(null, SqlFunction.SIGN, m.Type, m.GetArgument("value"));
                 case "Math.Abs": return TrySqlFunction(null, SqlFunction.ABS, m.Type, m.GetArgument("value"));
