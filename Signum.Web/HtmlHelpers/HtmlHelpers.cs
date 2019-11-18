@@ -162,6 +162,11 @@ namespace Signum.Web
             return new TabContainer(html, ctx, containerId);
         }
 
+        public static TabContainer Tabs(this HtmlHelper html, TypeContext ctx, string containerId, string containerCustomClass)
+        {
+            return new TabContainer(html, ctx, containerId, containerCustomClass);
+        }
+
 
         /// <summary>
         /// Returns a "label" label that is used to show the name of a field in a form

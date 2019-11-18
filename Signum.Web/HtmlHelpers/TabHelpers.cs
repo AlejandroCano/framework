@@ -16,12 +16,21 @@ namespace Signum.Web
         TypeContext context;
         HtmlHelper helper;
         string containerId;
+        string containerCustomClass;
 
         public TabContainer(HtmlHelper helper, TypeContext context, string containerId)
         {
             this.helper = helper;
             this.context = context;
-            this.containerId = containerId; 
+            this.containerId = containerId;
+        }
+
+        public TabContainer(HtmlHelper helper, TypeContext context, string containerId, string containerCustomClass)
+        {
+            this.helper = helper;
+            this.context = context;
+            this.containerId = containerId;
+            this.containerCustomClass = containerCustomClass;
         }
 
         public void Tab(Tab tab)
@@ -75,7 +84,7 @@ namespace Signum.Web
 
             var first = newTabs.FirstOrDefault(a => a.Active) ?? newTabs.FirstOrDefault();
 
-            using (Surround(writer, new HtmlTag("ul", context.Compose(containerId)).Class("nav nav-tabs")))
+            using (Surround(writer, new HtmlTag("ul", context.Compose(containerId)).Class("nav nav-tabs" + (containerCustomClass.HasText() ? " " + containerCustomClass : ""))))
                 foreach (var t in newTabs)
                     t.WriteHeader(writer, first, context);
 
