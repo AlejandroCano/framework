@@ -152,14 +152,14 @@ namespace Signum.Web
 
         public virtual void WriteHeader(TextWriter writer, Tab first, TypeContext context)
         {
-            using (TabContainer.Surround(writer, new HtmlTag("li").Class(this == first ? "active" : null)))
-            using (TabContainer.Surround(writer, new HtmlTag("a").Attr("href", "#" + context.Compose(this.Id)).Attr("data-toggle", "tab").Attr("title", this.ToolTip)))
+            using (TabContainer.Surround(writer, new HtmlTag("li")))
+            using (TabContainer.Surround(writer, new HtmlTag("a").Attr("href", "#" + context.Compose(this.Id)).Attr("data-toggle", "tab").Attr("title", this.ToolTip).Class(this == first ? "active" : null)))
                 this.Title.WriteTo(writer);
         }
 
         public virtual void WriteBody(TextWriter writer, Tab first, TypeContext context)
         {
-            using (TabContainer.Surround(writer, new HtmlTag("div", context.Compose(this.Id)).Class("tab-pane fade").Class(this == first ? "in active" : null)))
+            using (TabContainer.Surround(writer, new HtmlTag("div", context.Compose(this.Id)).Class("tab-pane fade").Class(this == first ? "show active" : null)))
                 this.Body.WriteTo(writer);
         }
     }
