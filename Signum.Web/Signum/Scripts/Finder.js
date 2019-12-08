@@ -102,7 +102,7 @@ define(["require", "exports", "Framework/Signum.Web/Signum/Scripts/Entities", "F
             });
         } else {
             okButon.removeAttr("disabled");
-            okButon.parent().tooltip("destroy");
+            okButon.parent().tooltip("dispose");
         }
     }
 
@@ -931,7 +931,7 @@ define(["require", "exports", "Framework/Signum.Web/Signum/Scripts/Entities", "F
             } else {
                 var self = this;
                 $button.removeAttr("disabled");
-                $button.parent().tooltip("destroy");
+                $button.parent().tooltip("dispose");
                 $button.unbind('click').bind('click', enableCallback);
             }
         };

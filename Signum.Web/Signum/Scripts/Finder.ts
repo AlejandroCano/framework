@@ -136,7 +136,7 @@ function updateOkButton(okButtonId: string, sel: number, multipleSelection: bool
     }
     else {
         okButon.removeAttr("disabled");
-        okButon.parent().tooltip("destroy");
+        okButon.parent().tooltip("dispose");
     }
 }
 
@@ -963,7 +963,7 @@ export class FilterBuilder {
         else {
             var self = this;
             $button.removeAttr("disabled");
-            $button.parent().tooltip("destroy");
+            $button.parent().tooltip("dispose");
             $button.unbind('click').bind('click', enableCallback);
         }
     }
