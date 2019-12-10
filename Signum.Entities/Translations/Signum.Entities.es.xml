@@ -7,6 +7,10 @@
     <Member Name="Min" Description="Min" />
     <Member Name="Sum" Description="Suma" />
   </Type>
+  <Type Name="BooleanEnum">
+    <Member Name="False" Description="No" />
+    <Member Name="True" Description="Sí" />
+  </Type>
   <Type Name="CalendarMessage">
     <Member Name="Today" Description="Hoy" />
   </Type>
