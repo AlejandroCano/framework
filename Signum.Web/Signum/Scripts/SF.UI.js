@@ -293,7 +293,7 @@ var SF;
             if (pane.hasClass("active") || !id)
                 return element;
 
-            var tab = pane.parent().parent().find("a[data-toggle=tab][href=#" + id + "]");
+            var tab = pane.parent().parent().find("a[data-toggle='tab'][href='#" + id + "']");
 
             if (!tab.length)
                 return element;
