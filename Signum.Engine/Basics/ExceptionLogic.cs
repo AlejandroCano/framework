@@ -81,7 +81,7 @@ namespace Signum.Engine.Basics
 
             try
             {
-                entity.Data = ex.Data.Dump();
+                entity.Data = entity.Data + ex.Data.Dump();
             }
             catch (Exception e)
             {
