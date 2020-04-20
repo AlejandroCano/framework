@@ -144,7 +144,7 @@ namespace Signum.Utilities
 
         public override T Value
         {
-            get { return store.Value; }
+            get { return store.Value!; }
             set { store.Value = value; }
         }
 
