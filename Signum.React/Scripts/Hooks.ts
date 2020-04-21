@@ -160,7 +160,7 @@ export function useHistoryListen(locationChanged: (location: History.Location, a
     if (!enabled)
       return;
 
-    unregisterCallback.current = Navigator.history.listen(locationChanged);
+    unregisterCallback.current = Navigator.getHistory().listen(locationChanged);
     return () => { unregisterCallback.current!(); }
   }, [enabled, ...(extraDeps || [])]);
 }

@@ -65,7 +65,7 @@ export function GlobalModalContainer() {
 
   React.useEffect(() => {
     setModals([]);
-  }, [Navigator.history.location.pathname])
+  }, [Navigator.getHistory().location.pathname])
 
 
   return React.createElement("div", { className: "sf-modal-container" }, ...modals);

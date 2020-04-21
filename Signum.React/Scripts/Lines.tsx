@@ -128,7 +128,7 @@ export function taskSetMove(lineBase: LineBaseController<any>, state: LineBasePr
   }
 }
 
-export let maxValueLineSize = 100;
+export const maxValueLineSize = 100;
 
 tasks.push(taskSetHtmlProperties);
 export function taskSetHtmlProperties(lineBase: LineBaseController<any>, state: LineBaseProps) {

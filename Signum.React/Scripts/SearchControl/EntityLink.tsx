@@ -48,7 +48,7 @@ export default function EntityLink(p: EntityLinkProps) {
 
     if (p.inPlaceNavigation) {
       var vp = p.getViewPromise && p.getViewPromise(null);
-      Navigator.history.push(Navigator.navigateRoute(lite, vp && typeof vp == "string" ? vp : undefined));
+      Navigator.getHistory().push(Navigator.navigateRoute(lite, vp && typeof vp == "string" ? vp : undefined));
     } else {
       Navigator.navigate(lite, { getViewPromise: p.getViewPromise }).then(() => {
         p.onNavigated && p.onNavigated(lite);

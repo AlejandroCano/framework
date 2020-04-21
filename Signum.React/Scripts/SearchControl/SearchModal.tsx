@@ -116,8 +116,8 @@ function SearchModal(p: SearchModalProps) {
 
 
 namespace SearchModal {
-  export let marginVertical = 300;
-  export let minHeight = 600;
+  export const marginVertical = 300;
+  export const minHeight = 600;
 
   export function open(findOptions: FindOptions, modalOptions?: ModalFindOptions): Promise<ResultRow | undefined> {
 

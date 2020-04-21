@@ -663,7 +663,7 @@ export default class SearchControlLoaded extends React.Component<SearchControlLo
           if (this.props.navigate == "InPlace") {
 
             var vp = getViewPromise && getViewPromise(null);
-            Navigator.history.push(Navigator.createRoute(tn, vp && typeof vp == "string" ? vp : undefined));
+            Navigator.getHistory().push(Navigator.createRoute(tn, vp && typeof vp == "string" ? vp : undefined));
 
           } else {
 
@@ -693,7 +693,7 @@ export default class SearchControlLoaded extends React.Component<SearchControlLo
     if (ev.ctrlKey || ev.button == 1 || this.props.avoidChangeUrl)
       window.open(path);
     else
-      Navigator.history.push(path);
+      Navigator.getHistory().push(path);
   };
 
   createTitle() {
@@ -1200,7 +1200,7 @@ export default class SearchControlLoaded extends React.Component<SearchControlLo
       else {
         if (this.props.navigate == "InPlace") {
           var vp = getViewPromise && getViewPromise(null);
-          Navigator.history.push(Navigator.navigateRoute(lite, vp && typeof vp == "string" ? vp : undefined));
+          Navigator.getHistory().push(Navigator.navigateRoute(lite, vp && typeof vp == "string" ? vp : undefined));
         } else {
           Navigator.navigate(lite, { getViewPromise: getViewPromise })
             .then(() => {

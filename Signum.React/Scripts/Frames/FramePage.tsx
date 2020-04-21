@@ -110,9 +110,9 @@ export default function FramePage(p: FramePageProps) {
 
   function onClose() {
     if (Finder.isFindable(p.match.params.type, true))
-      Navigator.history.push(Finder.findOptionsPath({ queryName: p.match.params.type }));
+      Navigator.getHistory().push(Finder.findOptionsPath({ queryName: p.match.params.type }));
     else
-      Navigator.history.push("~/");
+      Navigator.getHistory().push("~/");
   }
 
   function setComponent(c: React.Component | null) {
@@ -142,7 +142,7 @@ export default function FramePage(p: FramePageProps) {
       var packEntity = (pack ?? state.pack) as EntityPack<Entity>;
 
       if (packEntity.entity.id != null && entity.id == null)
-        Navigator.history.push(Navigator.navigateRoute(packEntity.entity));
+        Navigator.getHistory().push(Navigator.navigateRoute(packEntity.entity));
       else {
         if (reloadComponent) {
           setState(undefined)

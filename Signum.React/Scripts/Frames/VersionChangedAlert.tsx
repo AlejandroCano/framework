@@ -20,7 +20,7 @@ export default function VersionChangedAlert(p: { blink?: boolean }) {
     location.reload(true);
   }
 
-  if (VersionFilter.latestVersion == VersionFilter.initialVersion)
+  if (VersionFilter.getLatestVersion() == VersionFilter.getInitialVersion())
     return null;
 
   return (

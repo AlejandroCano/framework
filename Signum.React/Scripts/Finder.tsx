@@ -194,7 +194,7 @@ export function findOptionsPath(fo: FindOptions, extra?: any): string {
 
   const query = findOptionsPathQuery(fo, extra);
 
-  return Navigator.history.createHref({ pathname: "~/find/" + getQueryKey(fo.queryName), search: QueryString.stringify(query) });
+  return Navigator.getHistory().createHref({ pathname: "~/find/" + getQueryKey(fo.queryName), search: QueryString.stringify(query) });
 }
 
 export function findOptionsPathQuery(fo: FindOptions, extra?: any): any {
@@ -1330,7 +1330,7 @@ export module ButtonBarQuery {
 
 }
 
-export let defaultPagination: Pagination = {
+export const defaultPagination: Pagination = {
   mode: "Paginate",
   elementsPerPage: 20,
   currentPage: 1,

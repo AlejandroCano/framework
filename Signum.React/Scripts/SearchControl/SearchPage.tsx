@@ -48,10 +48,10 @@ function SearchPage(p: SearchPageProps) {
     const scl = searchControl.current!.searchControlLoaded!;
     const findOptions = Finder.toFindOptions(scl.props.findOptions, scl.props.queryDescription, true);
     const newPath = Finder.findOptionsPath(findOptions, scl.extraParams());
-    const currentLocation = Navigator.history.location;
+    const currentLocation = Navigator.getHistory().location;
 
     if (currentLocation.pathname + currentLocation.search != newPath)
-      Navigator.history.replace(newPath);
+      Navigator.getHistory().replace(newPath);
   }
 
   if (!Finder.isFindable(fo.queryName, true))
@@ -107,9 +107,9 @@ function anyPinned(filterOptions?: FilterOption[]): boolean {
 
 
 namespace SearchPage {
-  export let marginDown = 130;
-  export let minHeight = 600;
-  export let showFilters = (fo: FindOptions, qs: Finder.QuerySettings | undefined) => {
+  export const marginDown = 130;
+  export const minHeight = 600;
+  export const showFilters = (fo: FindOptions, qs: Finder.QuerySettings | undefined) => {
     var allFilters = [
       ...fo.filterOptions ?? [],
       ... (fo.includeDefaultFilters ?? true) ? qs?.defaultFilters ?? [] : []

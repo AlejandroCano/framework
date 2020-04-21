@@ -9,8 +9,8 @@ export default function ContainerToggleComponent(p: { children: React.ReactNode 
   const [fluid, setFluid] = React.useState(false);
 
   React.useEffect(() => {
-    Navigator.Expander.onGetExpanded = () => fluid;
-    Navigator.Expander.onSetExpanded = (isExpanded: boolean) => setFluid(isExpanded);
+    Navigator.Expander.setOnGetExpandedFunc(() => fluid);
+    Navigator.Expander.setOnSetExpandedFunc((isExpanded: boolean) => setFluid(isExpanded));
   });
 
   function handleExpandToggle(e: React.MouseEvent<any>){

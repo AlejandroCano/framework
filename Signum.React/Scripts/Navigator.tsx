@@ -23,19 +23,29 @@ import { clearCustomConstructors } from "./Constructor";
 
 Dic.skipClasses.push(React.Component);
 
-export let currentUser: IUserEntity | undefined;
+let currentUser: IUserEntity | undefined;
+export function getCurrentUser() : IUserEntity | undefined {
+  return currentUser;
+}
 export function setCurrentUser(user: IUserEntity | undefined) {
   currentUser = user;
 }
 
-export let history: H.History;
+let history: H.History;
+export function getHistory() {
+  return history;
+}
 export function setCurrentHistory(h: H.History) {
   history = h;
 }
 
-export let setTitle: (pageTitle?: string) => void;
+let setTitleFunc: (pageTitle?: string) => void;
+export function setTitle(pageTitle?: string): void {
+  if (setTitleFunc)
+    setTitleFunc(pageTitle);
+}
 export function setTitleFunction(titleFunction: (pageTitle?: string) => void) {
-  setTitle = titleFunction;
+  setTitleFunc = titleFunction;
 }
 
 export function createAppRelativeHistory(): H.History {
@@ -49,19 +59,32 @@ export function createAppRelativeHistory(): H.History {
 
 }
 
-export let resetUI: () => void = () => { };
+let resetUIFunc: () => void = () => { };
+export function resetUI(): void {
+  return resetUIFunc();
+}
 export function setResetUI(reset: () => void) {
-  resetUI = reset;
+  resetUIFunc = reset;
 }
 
 export namespace Expander {
-  export let onGetExpanded: () => boolean;
-  export let onSetExpanded: (isExpanded: boolean) => void;
+  let onGetExpandedFunc: () => boolean;
+  export function setOnGetExpandedFunc(func: () => boolean): void {
+    onGetExpandedFunc = func;
+  }
+  export function onGetExpanded(): () => boolean {
+    return onGetExpandedFunc;
+  }
+
+  let onSetExpandedFunc: (isExpanded: boolean) => void;
+  export function setOnSetExpandedFunc(func: (isExpanded: boolean) => void): void {
+    onSetExpandedFunc = func;
+  }
 
   export function setExpanded(expanded: boolean): boolean {
-    let wasExpanded = onGetExpanded != null && onGetExpanded();;
-    if (onSetExpanded)
-      onSetExpanded(expanded);
+    let wasExpanded = onGetExpandedFunc != null && onGetExpandedFunc();
+    if (onSetExpandedFunc)
+      onSetExpandedFunc(expanded);
 
     return wasExpanded;
   }
@@ -190,10 +213,6 @@ export function getSettings(type: PseudoType): EntitySettings<ModifiableEntity> 
   return entitySettings[typeName];
 }
 
-export function setViewDispatcher(newDispatcher: ViewDispatcher) {
-  viewDispatcher = newDispatcher;
-}
-
 export interface ViewDispatcher {
   hasDefaultView(typeName: string): boolean;
   getViewNames(typeName: string): Promise<string[]>;
@@ -282,7 +301,13 @@ export class DynamicComponentViewDispatcher implements ViewDispatcher {
   }
 }
 
-export let viewDispatcher: ViewDispatcher = new DynamicComponentViewDispatcher();
+let viewDispatcher: ViewDispatcher = new DynamicComponentViewDispatcher();
+export function getViewDispatcher(): ViewDispatcher {
+  return viewDispatcher;
+}
+export function setViewDispatcher(dispatcher: ViewDispatcher) {
+  viewDispatcher = dispatcher;
+}
 
 export function getViewPromise<T extends ModifiableEntity>(entity: T, viewName?: string): ViewPromise<T> {
   return viewDispatcher.getViewPromise(entity, viewName);

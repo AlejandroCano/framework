@@ -82,9 +82,29 @@ export interface SearchControlHandler {
 }
 
 export namespace SearchControlOptions {
-  export let showSelectedButton = (sc: SearchControlHandler) => is_touch_device();
-  export let showSystemTimeButton = (sc: SearchControlHandler) => true;
-  export let showGroupButton = (sc: SearchControlHandler) => true;
+  let showSelectedButton = (sc: SearchControlHandler) => is_touch_device();
+  export function getShowSelectedButton(sc: SearchControlHandler): boolean {
+    return showSelectedButton(sc);
+  }
+  export function setShowSelectedButton(func: (sc: SearchControlHandler) => boolean) {
+    showSelectedButton = func;
+  }
+
+  let showSystemTimeButton = (sc: SearchControlHandler) => true;
+  export function getShowSystemTimeButton(sc: SearchControlHandler): boolean {
+    return showSystemTimeButton(sc);
+  }
+  export function setShowSystemTimeButton(func: (sc: SearchControlHandler) => boolean) {
+    showSystemTimeButton = func;
+  }
+
+  let showGroupButton = (sc: SearchControlHandler) => true;
+  export function getShowGroupButton(sc: SearchControlHandler): boolean {
+    return showGroupButton(sc);
+  }
+  export function setShowGroupButton(func: (sc: SearchControlHandler) => boolean) {
+    showGroupButton = func;
+  }
 }
 
 const SearchControl = React.forwardRef(function SearchControl(p: SearchControlProps, ref: React.Ref<SearchControlHandler>) {
@@ -179,9 +199,9 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
         showFilters={p.showFilters != null ? p.showFilters : false}
         showSimpleFilterBuilder={p.showSimpleFilterBuilder != null ? p.showSimpleFilterBuilder : true}
         showFilterButton={p.showFilterButton != null ? p.showFilterButton : true}
-        showSystemTimeButton={SearchControlOptions.showSystemTimeButton(handler) && (p.showSystemTimeButton != null ? p.showSystemTimeButton : qs?.allowSystemTime != null ? qs.allowSystemTime : tis.some(a => a.isSystemVersioned == true))}
-        showGroupButton={SearchControlOptions.showGroupButton(handler) && p.showGroupButton != null ? p.showGroupButton : false}
-        showSelectedButton={SearchControlOptions.showSelectedButton(handler)}
+        showSystemTimeButton={SearchControlOptions.getShowSystemTimeButton(handler) && (p.showSystemTimeButton != null ? p.showSystemTimeButton : qs?.allowSystemTime != null ? qs.allowSystemTime : tis.some(a => a.isSystemVersioned == true))}
+        showGroupButton={SearchControlOptions.getShowGroupButton(handler) && p.showGroupButton != null ? p.showGroupButton : false}
+        showSelectedButton={SearchControlOptions.getShowSelectedButton(handler)}
         showFooter={p.showFooter != null ? p.showFooter : true}
         allowChangeColumns={p.allowChangeColumns != null ? p.allowChangeColumns : true}
         allowChangeOrder={p.allowChangeOrder != null ? p.allowChangeOrder : true}

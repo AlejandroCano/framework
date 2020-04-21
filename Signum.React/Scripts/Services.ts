@@ -105,9 +105,9 @@ export function wrapRequest(options: AjaxOptions, makeCall: () => Promise<Respon
     makeCall = () => ThrowErrorFilter.throwError(call);
   }
 
-  if (!options.avoidAuthToken && AuthTokenFilter.addAuthToken) {
+  if (!options.avoidAuthToken) {
     let call = makeCall;
-    makeCall = () => AuthTokenFilter.addAuthToken(options, call);
+    makeCall = AuthTokenFilter.addAuthToken(options, call);
   }
 
   if (!options.avoidNotifyPendingRequests) {
@@ -125,15 +125,43 @@ export function wrapRequest(options: AjaxOptions, makeCall: () => Promise<Respon
 }
 
 export module AuthTokenFilter {
-  export let addAuthToken: (options: AjaxOptions, makeCall: () => Promise<Response>) => Promise<Response>;
+  let addAuthTokenFunc: (options: AjaxOptions, makeCall: () => Promise<Response>) => Promise<Response>;
+  export function setAddAuthTokenFunc(func: (options: AjaxOptions, makeCall: () => Promise<Response>) => Promise<Response>)
+  {
+    addAuthTokenFunc = func;
+  }
+  export function addAuthToken(options: AjaxOptions, makeCall: () => Promise<Response>): () => Promise<Response> {
+    if (!addAuthTokenFunc)
+      return makeCall;
+    else
+      return () => addAuthTokenFunc(options, makeCall);
+  }
 }
 
 export module VersionFilter {
-  export let initialVersion: string | undefined;
-  export let latestVersion: string | undefined;
+  let initialVersion: string | undefined;
+  export function getInitialVersion(): string | undefined {
+    return initialVersion;
+  }
+  export function setInitialVersion(version: string | undefined): void {
+    initialVersion = version;
+  }
+  let latestVersion: string | undefined;
+  export function getLatestVersion(): string | undefined {
+    return latestVersion;
+  }
+  export function setLatestVersion(version: string | undefined): void {
+    latestVersion = version;
+  }
 
-  export let versionHasChanged: () => void = () => console.warn("New Server version detected, handle VersionFilter.versionHasChanged to inform user");
-
+  let versionHasChangedFunc: () => void = () => console.warn("New Server version detected, handle VersionFilter.versionHasChanged to inform user");
+  export function getVersionHasChanged(): () => void {
+    return versionHasChangedFunc;
+  }
+  export function setVersionHasChanged(func: () => void) {
+    versionHasChangedFunc = func;
+  }
+  
   export function onVersionFilter(makeCall: () => Promise<Response>): Promise<Response> {
     function changeVersion(response: Response) {
       var ver = response.headers.get("X-App-Version");
@@ -142,12 +170,13 @@ export module VersionFilter {
         return;
 
       if (initialVersion == undefined) {
-        initialVersion = ver;
-        latestVersion = ver;
+        setInitialVersion(ver);
+        setLatestVersion(ver);
       }
 
       if (latestVersion != ver) {
-        latestVersion = ver;
+        setLatestVersion(ver);
+        var versionHasChanged = getVersionHasChanged();
         if (versionHasChanged)
           versionHasChanged();
       }
@@ -158,7 +187,10 @@ export module VersionFilter {
 }
 
 export module NotifyPendingFilter {
-  export let notifyPendingRequests: (pendingRequests: number) => void = () => { };
+  let notifyPendingRequests: (pendingRequests: number) => void = () => { };
+  export function setNotifyPendingRequests(func: (pendingRequests: number) => void): void {
+    notifyPendingRequests = func;
+  }
   let pendingRequests: number = 0;
   export function onPendingRequest(makeCall: () => Promise<Response>): Promise<Response> {
 
@@ -304,7 +336,7 @@ export class ValidationError {
 
 export namespace SessionSharing {
 
-  export let avoidSharingSession = false;
+  export const avoidSharingSession = false;
 
   //localStorage: Domain+Browser
   //sessionStorage: Browser tab, copied when Ctrl+Click from another tab, but not windows.open or just paste link
