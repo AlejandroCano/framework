@@ -43,7 +43,6 @@ export default function WidgetEmbedded(p: WidgetEmbeddedProps) {
   const embeddedWidgets = renderEmbeddedWidgets(p.widgetContext);
   const est = Navigator.getSettings(p.widgetContext.frame.pack.entity.Type)!;
  
-  debugger;
   if (embeddedWidgets.tab.length > 0 && est.supportsAdditionalTabs!==true) {
     return (
       <>
