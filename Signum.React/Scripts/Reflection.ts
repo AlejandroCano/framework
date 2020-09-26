@@ -1,5 +1,4 @@
-import * as moment from 'moment';
-import numbro from 'numbro';
+import { DateTime} from 'luxon';
 import { Dic } from './Globals';
 import { ModifiableEntity, Entity, Lite, MListElement, ModelState, MixinEntity } from './Signum.Entities'; //ONLY TYPES or Cyclic problems in Webpack!
 import { ajaxGet } from './Services';
@@ -74,39 +73,38 @@ export enum OperationType {
   ConstructorFromMany = "ConstructorFromMany" as any
 }
 
-//https://msdn.microsoft.com/en-us/library/az4se3k1%28v=vs.110%29.aspx?f=255&MSPPError=-2147217396
-//http://momentjs.com/docs/#/displaying/format/
-export function toMomentFormat(format: string | undefined): string | undefined {
+//https://moment.github.io/luxon/docs/manual/formatting.html#formatting-with-tokens--strings-for-cthulhu-
+//https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-date-and-time-format-strings
+export function toLuxonFormat(format: string | undefined): string {
 
   if (!format)
-    return undefined;
+    return "F";
   
   switch (format) {
-    case "d": return "L"; // or "l"
-    case "D": return "LL";
-    case "f":
+    case "d": return "D"; // or "l"
+    case "D": return "DDD";
+    case "f": return "fff"
     case "F": return "LLLL";
-    case "g": return "L LT";
-    case "G": return "L LTS";
+    case "g": return "f";
+    case "G": return "F";
     case "M":
-    case "m": return "D MMM";
-    case "u":
-    case "s": return "YYYY-MM-DDTHH:mm:ss";
-    case "o":
-    case "t": return "LT";
-    case "T": return "LTS";
+    case "m": return "dd LLLL"; //No one without year
+    case "u": return "yyyy-MM-dd'T'HH:mm:ss";
+    case "s": return "yyyy-MM-dd'T'HH:mm:ss";
+    case "o": return "yyyy-MM-dd'T'HH:mm:ss.SSS";
+    case "t": return "t";
+    case "T": return "tt";
     case "y": return "LTS";
-    case "Y": return "L";
+    case "Y": return "LLLL yyyy";
     default: return format
-      .replaceAll("y", "Y")
       .replaceAll("f", "S")
       .replaceAll("tt", "A")
       .replaceAll("t", "a")
       .replaceAll("dddd", "ßßßß")
       .replaceAll("ddd", "ßßß")
       .replaceAll("d", "D") //replace only d -> D and dd -> DD
-      .replaceAll("ßßßß", "dddd")
-      .replaceAll("ßßß", "ddd");
+      .replaceAll("ßßßß", "cccc")
+      .replaceAll("ßßß", "ccc");
   }
 }
 
@@ -121,38 +119,80 @@ export function toDurationFormat(format: string | undefined): string | undefined
   return format.replace("\\:", ":");
 }
 
-export function toNumbroFormat(format: string | undefined) {
+export namespace NumberFormatSettings {
+  export let defaultNumberFormatLocale: string = null!;
+}
+
+//https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-numeric-format-strings
+export function toNumberFormat(format: string | undefined, locale?: string): Intl.NumberFormat {
+  return new Intl.NumberFormat(locale ?? NumberFormatSettings.defaultNumberFormatLocale, toNumberFormatOptions(format));
+}
+
+export function toNumberFormatOptions(format: string | undefined): Intl.NumberFormatOptions | undefined {
 
   if (format == undefined)
     return undefined;
 
   const f = format.toUpperCase();
 
-  if (f.startsWith("C"))
-    return "0." + "0".repeat(parseInt(f.after("C") || "2"));
+  if (f.startsWith("C")) //unit comes separated
+    return {
+      style: "decimal",
+      minimumFractionDigits: parseInt(f.after("C")) || 2,
+      maximumFractionDigits: parseInt(f.after("C")) || 2,
+      useGrouping: true,
+    }
 
   if (f.startsWith("N"))
-    return "0,0." + "0".repeat(parseInt(f.after("N") || "2"));
+    return {
+      style: "decimal",
+      minimumFractionDigits: parseInt(f.after("N")) || 2,
+      maximumFractionDigits: parseInt(f.after("N")) || 2,
+      useGrouping: true,
+    }
 
   if (f.startsWith("D"))
-    return "0".repeat(parseInt(f.after("D") || "1"));
+    return {
+      style: "decimal",
+      maximumFractionDigits: 0,
+      minimumIntegerDigits: parseInt(f.after("D")) || 1,
+      useGrouping: false,
+    }
 
   if (f.startsWith("F"))
-    return "0." + "0".repeat(parseInt(f.after("F") || "2"));
+    return {
+      style: "decimal",
+      minimumFractionDigits: parseInt(f.after("F")) || 2,
+      maximumFractionDigits: parseInt(f.after("F")) || 2,
+      useGrouping: false,
+    }
 
   if (f.startsWith("E"))
-    return "0." + "0".repeat(parseInt(f.after("E") || "2"));
+    return {
+      style: "decimal",
+      notation: "scientific",
+      minimumFractionDigits: parseInt(f.after("E")) || 6,
+      maximumFractionDigits: parseInt(f.after("E")) || 6,
+      useGrouping: false,
+    } as any;
 
   if (f.startsWith("P"))
-    return "0." + "0".repeat(parseInt(f.after("P") || "2")) + "%";
+    return {
+      style: "percent",
+      minimumFractionDigits: parseInt(f.after("P")) || 2,
+      maximumFractionDigits: parseInt(f.after("P")) || 2,
+      useGrouping: false,
+    }
 
-  if (f.contains("#"))
-    format = format
-      .replaceAll(".#", "[.]0")
-      .replaceAll(",#", "[,]0")
-      .replaceAll("#", "0");
 
-  return format;
+  //simple euristic
+  var afterDot = f.tryAfter(".") ?? "";
+  return {
+    style: "decimal",
+    minimumFractionDigits: afterDot.trimStart("#").length,
+    maximumFractionDigits: afterDot.length,
+    useGrouping: f.contains(","),
+  }
 }
 
 export function valToString(val: any) {
@@ -166,15 +206,15 @@ export function numberToString(val: any, format?: string) {
   if (val == null)
     return "";
 
-  return numbro(val).format(toNumbroFormat(format));
+  return toNumberFormat(format).format(val);
 }
 
 export function dateToString(val: any, format?: string) {
   if (val == null)
     return "";
 
-  var m = moment(val);
-  return m.format(toMomentFormat(format));
+  var m = DateTime.fromISO(val);
+  return m.toFormat(toLuxonFormat(format));
 }
 
 export function durationToString(val: any, format?: string) {

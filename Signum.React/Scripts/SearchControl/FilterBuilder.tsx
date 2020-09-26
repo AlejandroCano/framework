@@ -1,11 +1,11 @@
 import * as React from 'react'
-import * as moment from 'moment'
+import { DateTime } from 'luxon'
 import { Dic, areEqual, classes } from '../Globals'
 import { FilterOptionParsed, QueryDescription, QueryToken, SubTokensOptions, filterOperations, isList, FilterOperation, FilterConditionOptionParsed, FilterGroupOptionParsed, isFilterGroupOptionParsed, hasAnyOrAll, getTokenParents, isPrefix, FilterConditionOption, PinnedFilter, PinnedFilterParsed } from '../FindOptions'
 import { SearchMessage } from '../Signum.Entities'
 import { isNumber } from '../Lines/ValueLine'
 import { ValueLine, EntityLine, EntityCombo, StyleContext, FormControlReadonly } from '../Lines'
-import { Binding, IsByAll, tryGetTypeInfos, toMomentFormat, getTypeInfos } from '../Reflection'
+import { Binding, IsByAll, tryGetTypeInfos, toLuxonFormat, getTypeInfos, toNumberFormat } from '../Reflection'
 import { TypeContext } from '../TypeContext'
 import QueryTokenBuilder from './QueryTokenBuilder'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -427,7 +427,7 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
         f.value = f.operation && isList(f.operation) ? [undefined] : undefined;
       }
       else if (f.token && f.token.filterType == "DateTime" && newToken.filterType == "DateTime" && newToken.format && f.token.format != newToken.format) {
-        f.value = f.value && trimDateToFormat(f.value, toMomentFormat(newToken.format));
+        f.value = f.value && trimDateToFormat(f.value, toLuxonFormat(newToken.format));
       }
     }
     f.token = newToken ?? undefined;
@@ -445,8 +445,8 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
     if (!momentFormat)
       return date;
 
-    const formatted = moment(date).format(momentFormat);
-    return moment(formatted, momentFormat).format();
+    const formatted = DateTime.fromISO(date).toFormat(momentFormat);
+    return DateTime.fromFormat(formatted, momentFormat).toISO();
   }
 
 
@@ -582,8 +582,10 @@ export function PinnedFilterEditor(p: PinnedFilterEditorProps) {
     if (p.readonly)
       return <span className="numeric form-control form-control-xs" style={{ width: "60px" }}>{val}</span>;
 
+    var numberFormat = toNumberFormat("0");
+
     return (
-      <NumericTextBox value={val == undefined ? null : val} onChange={n => { binding.setValue(n == null ? undefined : n); p.onChange(); }}
+      <NumericTextBox value={val == undefined ? null : val} format={numberFormat} onChange={n => { binding.setValue(n == null ? undefined : n); p.onChange(); }}
         validateKey={isNumber} formControlClass="form-control form-control-xs" htmlAttributes={{ placeholder: title, style: { width: "60px" } }} />
     );
   }
