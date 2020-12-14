@@ -1243,7 +1243,9 @@ namespace Signum.Engine.Maps
             this.PrimaryKey = primaryKey;
             this.BackReference = backReference;
             this.CollectionType = collectionType;
+#pragma warning disable CS8602 // Desreferencia de una referencia posiblemente NULL.
             this.cache = new Lazy<IMListCache>(() => (IMListCache)giCreateCache.GetInvoker(this.Field.FieldType)(this));
+#pragma warning restore CS8602 // Desreferencia de una referencia posiblemente NULL.
         }
 #pragma warning restore CS8618 // Non-nullable field is uninitialized.
 
