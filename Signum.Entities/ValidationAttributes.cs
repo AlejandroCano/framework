@@ -138,7 +138,8 @@ namespace Signum.Entities
 
         protected override string? OverrideError(object? value)
         {
-            string val = (string)value!;
+        //    string val = (string)value!;
+            string? val = value?.ToString();
 
             if (string.IsNullOrEmpty(val))
                 return null;
