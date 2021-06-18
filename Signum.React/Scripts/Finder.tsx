@@ -1,7 +1,6 @@
 import * as React from "react";
-import * as moment from "moment"
-import numbro from "numbro"
-import * as QueryString from "query-string"
+import { DateTime } from 'luxon'
+import * as AppContext from "./AppContext"
 import * as Navigator from "./Navigator"
 import { Dic, classes } from './Globals'
 import { ajaxGet, ajaxPost } from './Services';
@@ -11,18 +10,19 @@ import {
   FindOptionsParsed, FilterOption, FilterOptionParsed, OrderOptionParsed, ValueFindOptionsParsed,
   QueryToken, ColumnDescription, ColumnOption, ColumnOptionParsed, Pagination, ResultColumn,
   ResultTable, ResultRow, OrderOption, SubTokensOptions, toQueryToken, isList, ColumnOptionsMode, FilterRequest, ModalFindOptions, OrderRequest, ColumnRequest,
-  isFilterGroupOption, FilterGroupOptionParsed, FilterConditionOptionParsed, isFilterGroupOptionParsed, FilterGroupOption, FilterConditionOption, FilterGroupRequest, FilterConditionRequest, PinnedFilter, SystemTime, QueryTokenType
+  isFilterGroupOption, FilterGroupOptionParsed, FilterConditionOptionParsed, isFilterGroupOptionParsed, FilterGroupOption, FilterConditionOption, FilterGroupRequest, FilterConditionRequest, PinnedFilter, SystemTime, QueryTokenType, hasAnyOrAll, hasAggregate, hasElement, toPinnedFilterParsed, isActive
 } from './FindOptions';
 
 import { PaginationMode, OrderType, FilterOperation, FilterType, UniqueType, QueryTokenMessage, FilterGroupOperation, PinnedFilterActive } from './Signum.Entities.DynamicQuery';
 
-import { Entity, Lite, toLite, liteKey, parseLite, EntityControlMessage, isLite, isEntityPack, isEntity, External, SearchMessage, ModifiableEntity, is } from './Signum.Entities';
+import { Entity, Lite, toLite, liteKey, parseLite, EntityControlMessage, isLite, isEntityPack, isEntity, External, SearchMessage, ModifiableEntity, is, JavascriptMessage } from './Signum.Entities';
 import { TypeEntity, QueryEntity } from './Signum.Entities.Basics';
 
 import {
   Type, IType, EntityKind, QueryKey, getQueryNiceName, getQueryKey, isQueryDefined, TypeReference,
-  getTypeInfo, getTypeInfos, getEnumInfo, toMomentFormat, toNumbroFormat, PseudoType, EntityData,
-  TypeInfo, PropertyRoute, QueryTokenString
+  getTypeInfo, tryGetTypeInfos, getEnumInfo, toLuxonFormat, toNumberFormat, PseudoType, EntityData,
+  TypeInfo, PropertyRoute, QueryTokenString, getTypeInfos, tryGetTypeInfo, onReloadTypesActions, 
+  Anonymous, toDurationFormat, durationToString
 } from './Reflection';
 
 import SearchModal from './SearchControl/SearchModal';
@@ -30,10 +30,12 @@ import EntityLink from './SearchControl/EntityLink';
 import SearchControlLoaded from './SearchControl/SearchControlLoaded';
 import { ImportRoute } from "./AsyncImport";
 import { SearchControl } from "./Search";
-import { json, namespace } from "d3";
 import { ButtonBarElement } from "./TypeContext";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { EntityBaseController } from "./Lines";
+import { clearContextualItems } from "./SearchControl/ContextualItems";
+import { APIHookOptions, useAPI } from "./Hooks";
+import { QueryString } from "./QueryString";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 
 export const querySettings: { [queryKey: string]: QuerySettings } = {};
@@ -42,16 +44,21 @@ export function clearQuerySettings() {
   Dic.clear(querySettings);
 }
 
-
 export function start(options: { routes: JSX.Element[] }) {
-  options.routes.push(<ImportRoute path="~/find/:queryName" onImportModule={() => FinderFindManager.getSearchPage()} />);
+  options.routes.push(<ImportRoute path="~/find/:queryName" onImportModule={() => Options.getSearchPage()} />);
+  AppContext.clearSettingsActions.push(clearContextualItems);
+  AppContext.clearSettingsActions.push(clearQuerySettings);
+  AppContext.clearSettingsActions.push(clearQueryDescriptionCache);
+  AppContext.clearSettingsActions.push(ButtonBarQuery.clearButtonBarElements);
+
+  onReloadTypesActions.push(clearQueryDescriptionCache);
 }
 
 export function addSettings(...settings: QuerySettings[]) {
   settings.forEach(s => Dic.addOrThrow(querySettings, getQueryKey(s.queryName), s));
 }
 
-export function pinnedSearchFilter<T extends Entity>(type: Type<T>, ...tokens: ((t: QueryTokenString<T>) => (QueryTokenString<any> | FilterConditionOption))[]): FilterGroupOption {
+export function pinnedSearchFilter<T extends Entity>(type: Type<T>, ...tokens: ((t: QueryTokenString<Anonymous<T>>) => (QueryTokenString<any> | FilterConditionOption))[]): FilterGroupOption {
   return {
     groupOperation: "Or",
     pinned: { splitText: true },
@@ -100,12 +107,12 @@ export function find(obj: FindOptions | Type<any>, modalOptions?: ModalFindOptio
   if (qs?.onFind && !(modalOptions?.useDefaultBehaviour))
     return qs.onFind(fo, modalOptions);
 
-  let getPromiseSearchModal: () => Promise<Lite<Entity> | undefined> = () => FinderFindManager.getSearchModal()
+  let getPromiseSearchModal: () => Promise<Lite<Entity> | undefined> = () => Options.getSearchModal()
     .then(a => a.default.open(fo, modalOptions))
-    .then(rr => rr?.entity);
+    .then(a => a?.row.entity);
 
   if (modalOptions?.autoSelectIfOne)
-    return fetchEntitiesWithFilters(fo.queryName, fo.filterOptions ?? [], fo.orderOptions ?? [], 2)
+    return fetchEntitiesLiteWithFilters(fo.queryName, fo.filterOptions ?? [], fo.orderOptions ?? [], 2)
       .then(data => {
         if (data.length == 1)
           return Promise.resolve(data[0]);
@@ -116,20 +123,33 @@ export function find(obj: FindOptions | Type<any>, modalOptions?: ModalFindOptio
   return getPromiseSearchModal();
 }
 
-export namespace FinderFindManager {
+export namespace Options {
   export function getSearchPage() {
     return import("./SearchControl/SearchPage");
   }
   export function getSearchModal() {
     return import("./SearchControl/SearchModal");
   }
+
+  export let entityColumnHeader: () => React.ReactChild = () => "";
+
+  export let tokenCanSetPropery = (qt: QueryToken) => qt.filterType == "Lite" && qt.key != "Entity" || qt.filterType == "Enum" && !isState(qt.type);
+
+  export let isState = (ti: TypeReference) => ti.name.endsWith("State");
+
+  export let defaultPagination: Pagination = {
+    mode: "Paginate",
+    elementsPerPage: 20,
+    currentPage: 1,
+  };
+
 }
 
-export function findRow(fo: FindOptions, modalOptions?: ModalFindOptions): Promise<ResultRow | undefined> {
+export function findRow(fo: FindOptions, modalOptions?: ModalFindOptions): Promise<{ row: ResultRow, searchControl: SearchControlLoaded } | undefined> {
 
   var qs = getSettings(fo.queryName);
 
-  return FinderFindManager.getSearchModal()
+  return Options.getSearchModal()
     .then(a => a.default.open(fo, modalOptions));
 }
 
@@ -148,12 +168,12 @@ export function findMany(findOptions: FindOptions | Type<any>, modalOptions?: Mo
   if (qs?.onFindMany && !(modalOptions?.useDefaultBehaviour))
     return qs.onFindMany(fo, modalOptions);
 
-  let getPromiseSearchModal: () => Promise<Lite<Entity>[] | undefined> = () => FinderFindManager.getSearchModal()
+  let getPromiseSearchModal: () => Promise<Lite<Entity>[] | undefined> = () => Options.getSearchModal()
     .then(a => a.default.openMany(fo, modalOptions))
-    .then(rows => rows?.map(a => a.entity!));
+    .then(a => a?.rows.map(a => a.entity!));
 
   if (modalOptions?.autoSelectIfOne)
-    return fetchEntitiesWithFilters(fo.queryName, fo.filterOptions || [], fo.orderOptions || [], 2)
+    return fetchEntitiesLiteWithFilters(fo.queryName, fo.filterOptions || [], fo.orderOptions || [], 2)
       .then(data => {
         if (data.length == 1)
           return Promise.resolve(data);
@@ -164,11 +184,11 @@ export function findMany(findOptions: FindOptions | Type<any>, modalOptions?: Mo
   return getPromiseSearchModal();
 }
 
-export function findManyRows(fo: FindOptions, modalOptions?: ModalFindOptions): Promise<ResultRow[] | undefined> {
+export function findManyRows(fo: FindOptions, modalOptions?: ModalFindOptions): Promise<{ rows: ResultRow[], searchControl: SearchControlLoaded } | undefined> {
 
   var qs = getSettings(fo.queryName);
 
-  return FinderFindManager.getSearchModal()
+  return Options.getSearchModal()
     .then(a => a.default.openMany(fo, modalOptions));
 }
 
@@ -186,7 +206,7 @@ export function explore(findOptions: FindOptions, modalOptions?: ModalFindOption
   if (qs?.onExplore && !(modalOptions?.useDefaultBehaviour))
     return qs.onExplore(findOptions, modalOptions);
 
-  return FinderFindManager.getSearchModal()
+  return Options.getSearchModal()
     .then(a => a.default.explore(findOptions, modalOptions));
 }
 
@@ -194,7 +214,7 @@ export function findOptionsPath(fo: FindOptions, extra?: any): string {
 
   const query = findOptionsPathQuery(fo, extra);
 
-  return Navigator.history.createHref({ pathname: "~/find/" + getQueryKey(fo.queryName), search: QueryString.stringify(query) });
+  return AppContext.history.createHref({ pathname: "~/find/" + getQueryKey(fo.queryName), search: QueryString.stringify(query) });
 }
 
 export function findOptionsPathQuery(fo: FindOptions, extra?: any): any {
@@ -223,7 +243,7 @@ export function findOptionsPathQuery(fo: FindOptions, extra?: any): any {
 export function getTypeNiceName(tr: TypeReference) {
 
   const niceName = tr.typeNiceName ??
-    getTypeInfos(tr)
+    tryGetTypeInfos(tr)
       .map(ti => ti == undefined ? getSimpleTypeNiceName(tr.name) : (ti.niceName ?? ti.name))
       .joinComma(External.CollectionMessage.Or.niceToString());
 
@@ -297,7 +317,7 @@ export function mergeColumns(columnDescriptions: ColumnDescription[], mode: Colu
 export function smartColumns(current: ColumnOptionParsed[], ideal: ColumnDescription[]): { mode: ColumnOptionsMode; columns: ColumnOption[] } {
 
   const similar = (c: ColumnOptionParsed, d: ColumnDescription) =>
-    c.token!.fullKey == d.name && (c.displayName == d.displayName);
+    c.token!.fullKey == d.name && (c.displayName == d.displayName) && c.summaryToken == null && !c.hiddenColumn;
 
   ideal = ideal.filter(a => a.name != "Entity");
 
@@ -323,13 +343,23 @@ export function smartColumns(current: ColumnOptionParsed[], ideal: ColumnDescrip
   else if (current.every((c, i) => i >= ideal.length || similar(c, ideal[i]))) {
     return {
       mode: "Add",
-      columns: current.slice(ideal.length).map(c => ({ token: c.token!.fullKey, displayName: c.displayName }) as ColumnOption)
+      columns: current.slice(ideal.length).map(c => ({
+        token: c.token!.fullKey,
+        displayName: c.token!.niceName == c.displayName ? undefined : c.displayName,
+        summaryToken: c.summaryToken?.fullKey,
+        hiddenColumn: c.hiddenColumn,
+      }) as ColumnOption)
     };
   }
 
   return {
     mode: "Replace",
-    columns: current.map(c => ({ token: c.token!.fullKey, displayName: c.displayName }) as ColumnOption),
+    columns: current.map(c => ({
+      token: c.token!.fullKey,
+      displayName: c.token!.niceName == c.displayName ? undefined : c.displayName,
+      summaryToken: c.summaryToken?.fullKey,
+      hiddenColumn: c.hiddenColumn,
+    }) as ColumnOption),
   };
 }
 
@@ -379,11 +409,22 @@ export function parseColumnOptions(columnOptions: ColumnOption[], groupResults: 
   return completer.finished()
     .then(() => columnOptions.map(co => ({
       token: completer.get(co.token.toString()),
-      displayName: co.displayName ?? completer.get(co.token.toString()).niceName,
+      displayName: (typeof co.displayName == "function" ? co.displayName() : co.displayName) ?? completer.get(co.token.toString()).niceName,
+      summaryToken: co.summaryToken && completer.get(co.summaryToken.toString()),
+      hiddenColumn: co.hiddenColumn,
     }) as ColumnOptionParsed));
 }
 
-export function getPropsFromFilters(type: PseudoType, filterOptionsParsed: FilterOptionParsed[]): Promise<any> {
+
+
+export function getPropsFromFilters(type: PseudoType, filterOptionsParsed: FilterOptionParsed[], avoidCustom?: boolean): Promise<any> {
+
+  const ti = getTypeInfo(type);
+
+  if (!avoidCustom && querySettings[ti.name]?.customGetPropsFromFilter) {
+    return querySettings[ti.name].customGetPropsFromFilter!([...filterOptionsParsed]);
+  }
+
 
   function getMemberForToken(ti: TypeInfo, fullKey: string) {
     var token = fullKey.tryAfter("Entity.") ?? fullKey;
@@ -394,13 +435,16 @@ export function getPropsFromFilters(type: PseudoType, filterOptionsParsed: Filte
     return ti.members[token];
   }
 
-  const ti = getTypeInfo(type);
 
   var result: any = {};
 
   return Promise.all(filterOptionsParsed.map(fo => {
 
-    if (isFilterGroupOptionParsed(fo) || fo.token == null || fo.operation != "EqualTo")
+    if (isFilterGroupOptionParsed(fo) ||
+      fo.token == null ||
+      !Options.tokenCanSetPropery(fo.token) ||
+      fo.operation != "EqualTo" ||
+      !isActive(fo))
       return null;
 
     const mi = getMemberForToken(ti, fo.token!.fullKey);
@@ -408,7 +452,7 @@ export function getPropsFromFilters(type: PseudoType, filterOptionsParsed: Filte
     if (!mi)
       return null;
 
-    const promise = Navigator.tryConvert(fo.value, mi.type);
+    const promise = tryConvert(fo.value, mi.type);
 
     if (promise == null)
       return null;
@@ -418,13 +462,63 @@ export function getPropsFromFilters(type: PseudoType, filterOptionsParsed: Filte
   }).filter(p => !!p)).then(() => result);
 }
 
+export function tryConvert(value: any, type: TypeReference): Promise<any> | undefined {
+
+  if (value == null)
+    return Promise.resolve(null);
+
+  if (type.isLite) {
+
+    if (isLite(value))
+      return Promise.resolve(value);
+
+    if (isEntity(value))
+      return Promise.resolve(toLite(value));
+
+    return undefined;
+  }
+
+  const ti = tryGetTypeInfo(type.name);
+
+  if (ti?.kind == "Entity") {
+
+    if (isLite(value))
+      return Navigator.API.fetchAndForget(value);
+
+    if (isEntity(value))
+      return Promise.resolve(value);
+
+    return undefined;
+  }
+
+  if (type.name == "string" || type.name == "Guid" || type.name == "Date" || ti?.kind == "Enum") {
+    if (typeof value === "string")
+      return Promise.resolve(value);
+
+    return undefined;
+  }
+
+  if (type.name == "boolean") {
+    if (typeof value === "boolean")
+      return Promise.resolve(value);
+  }
+
+  if (type.name == "number") {
+    if (typeof value === "number")
+      return Promise.resolve(value);
+  }
+
+  return undefined;
+}
+
+
 export function getPropsFromFindOptions(type: PseudoType, fo: FindOptions | undefined): Promise<any> {
   if (fo == null)
     return Promise.resolve(undefined);
 
   return getQueryDescription(fo.queryName)
-    .then(qd => parseFilterOptions(fo!.filterOptions ?? [], false, qd))
-    .then(filters => getPropsFromFilters(type, filters));
+    .then(qd => parseFindOptions(fo, qd, true))
+    .then(fop => getPropsFromFilters(type, fop.filterOptions));
 }
 
 export function toFindOptions(fo: FindOptionsParsed, qd: QueryDescription, defaultIncludeDefaultFilters: boolean): FindOptions {
@@ -433,7 +527,7 @@ export function toFindOptions(fo: FindOptionsParsed, qd: QueryDescription, defau
 
   const qs = getSettings(fo.queryKey);
 
-  const defPagination = qs?.pagination ?? defaultPagination;
+  const defPagination = qs?.pagination ?? Options.defaultPagination;
 
   function equalsPagination(p1: Pagination, p2: Pagination) {
     return p1.mode == p2.mode && p1.elementsPerPage == p2.elementsPerPage && p1.currentPage == p2.currentPage;
@@ -450,18 +544,17 @@ export function toFindOptions(fo: FindOptionsParsed, qd: QueryDescription, defau
     systemTime: fo.systemTime,
   } as FindOptions;
 
-  if (!findOptions.groupResults && findOptions.orderOptions && findOptions.orderOptions.length == 1) {
-    var onlyOrder = findOptions.orderOptions[0]
+  if (!findOptions.groupResults && findOptions.orderOptions) {
     var defaultOrder = getDefaultOrder(qd, qs);
 
-    if (defaultOrder && onlyOrder.token == defaultOrder.token && onlyOrder.orderType == defaultOrder.orderType)
-      findOptions.orderOptions.remove(onlyOrder);
+    if (equalOrders(defaultOrder, findOptions.orderOptions))
+      findOptions.orderOptions = undefined;
   }
 
   if (findOptions.filterOptions) {
     var defaultFilters = getDefaultFilter(qd, qs);
     if (defaultFilters && defaultFilters.length <= findOptions.filterOptions.length) {
-      if (isEqual(defaultFilters, findOptions.filterOptions.slice(0, defaultFilters.length))) {
+      if (equalFilters(defaultFilters, findOptions.filterOptions.slice(0, defaultFilters.length))) {
         findOptions.filterOptions = findOptions.filterOptions.slice(defaultFilters.length);
         findOptions.includeDefaultFilters = true;
       }
@@ -476,7 +569,22 @@ export function toFindOptions(fo: FindOptionsParsed, qd: QueryDescription, defau
   return findOptions;
 }
 
-function isEqual(as: FilterOption[] | undefined, bs: FilterOption[] | undefined): boolean {
+function equalOrders(as: OrderOption[] | undefined, bs: OrderOption[] | undefined): boolean {
+  if (as == undefined && bs == undefined)
+    return true;
+
+  if (as == undefined || bs == undefined)
+    return true;
+
+  return as.length == bs.length && as.every((a, i) => {
+    var b = bs![i];
+
+    return (a.token && a.token.toString()) == (b.token && b.token.toString()) &&
+      a.orderType == b.orderType;
+  });
+}
+
+function equalFilters(as: FilterOption[] | undefined, bs: FilterOption[] | undefined): boolean {
 
   if (as == undefined && bs == undefined)
     return true;
@@ -489,26 +597,28 @@ function isEqual(as: FilterOption[] | undefined, bs: FilterOption[] | undefined)
 
     return (a.token && a.token.toString()) == (b.token && b.token.toString()) &&
       (a as FilterGroupOption).groupOperation == (b as FilterGroupOption).groupOperation &&
-      ((a as FilterConditionOption).operation ?? "EqualTo") == ((b as FilterConditionOption).operation ?? "EqualsTo") &&
-      (a.value == b.value || is(a.value, b.value)) &&
+      ((a as FilterConditionOption).operation ?? "EqualTo") == ((b as FilterConditionOption).operation ?? "EqualTo") &&
+      (a.value == b.value || is(a.value, b.value, false, false)) &&
       Dic.equals(a.pinned, b.pinned, true) &&
-      isEqual((a as FilterGroupOption).filters, (b as FilterGroupOption).filters);
+      equalFilters((a as FilterGroupOption).filters, (b as FilterGroupOption).filters);
   });
 }
 
 export const defaultOrderColumn: string = "Id";
 
-export function getDefaultOrder(qd: QueryDescription, qs: QuerySettings | undefined): OrderOption | undefined {
-  const defaultOrder = qs?.defaultOrderColumn ?? defaultOrderColumn;
+export function getDefaultOrder(qd: QueryDescription, qs: QuerySettings | undefined): OrderOption[] | undefined {
+  if (qs?.defaultOrders)
+    return qs.defaultOrders;
+
   const tis = getTypeInfos(qd.columns["Entity"].type);
 
-  if (defaultOrder == defaultOrderColumn && !qd.columns[defaultOrderColumn])
+  if (!qd.columns[defaultOrderColumn])
     return undefined;
 
-  return {
-    token: defaultOrder,
-    orderType: qs?.defaultOrderType ?? (tis.some(a => a.entityData == "Transactional") ? "Descending" as OrderType : "Ascending" as OrderType)
-  } as OrderOption;
+  return [{
+    token: defaultOrderColumn,
+    orderType: tis.some(a => a.entityData == "Transactional") ? "Descending" : "Ascending"
+  }];
 }
 
 export function getDefaultFilter(qd: QueryDescription | undefined, qs: QuerySettings | undefined): FilterOption[] | undefined {
@@ -546,12 +656,13 @@ export function toFilterOptions(filterOptionsParsed: FilterOptionParsed[]): Filt
 
   function toFilterOption(fop: FilterOptionParsed): FilterOption | null {
 
-    var pinned = fop.pinned && { ...fop.pinned } as PinnedFilter;
+
+    var pinned = fop.pinned && Dic.simplify({ ...fop.pinned }) as PinnedFilter;
     if (isFilterGroupOptionParsed(fop))
       return ({
         token: fop.token && fop.token.fullKey,
         groupOperation: fop.groupOperation,
-        value: fop.value,
+        value: fop.value === "" ? undefined : fop.value,
         pinned: pinned,
         filters: fop.filters.map(fp => toFilterOption(fp)).filter(fo => !!fo),
       }) as FilterGroupOption;
@@ -562,7 +673,7 @@ export function toFilterOptions(filterOptionsParsed: FilterOptionParsed[]): Filt
       return ({
         token: fop.token && fop.token.fullKey,
         operation: fop.operation,
-        value: fop.value,
+        value: fop.value === "" ? undefined : fop.value,
         frozen: fop.frozen ? true : undefined,
         pinned: pinned
       }) as FilterConditionOption;
@@ -581,14 +692,13 @@ export function parseFindOptions(findOptions: FindOptions, qd: QueryDescription,
   fo.columnOptions = mergeColumns(Dic.getValues(qd.columns), fo.columnOptionsMode ?? "Add", fo.columnOptions ?? []);
 
   var qs: QuerySettings | undefined = querySettings[qd.queryKey];
-  const tis = getTypeInfos(qd.columns["Entity"].type);
-
+  const tis = tryGetTypeInfos(qd.columns["Entity"].type);
 
   if (!fo.groupResults && (!fo.orderOptions || fo.orderOptions.length == 0)) {
     var defaultOrder = getDefaultOrder(qd, qs);
 
     if (defaultOrder)
-      fo.orderOptions = [defaultOrder];
+      fo.orderOptions = defaultOrder;
   }
 
   if (fo.includeDefaultFilters == null ? defaultIncludeDefaultFilters : fo.includeDefaultFilters) {
@@ -607,20 +717,24 @@ export function parseFindOptions(findOptions: FindOptions, qd: QueryDescription,
   if (fo.orderOptions)
     fo.orderOptions.forEach(oo => completer.request(oo.token.toString(), SubTokensOptions.CanElement | canAggregate));
 
-  if (fo.columnOptions)
+  if (fo.columnOptions) {
     fo.columnOptions.forEach(co => completer.request(co.token.toString(), SubTokensOptions.CanElement | canAggregate));
+    fo.columnOptions.filter(a => a.summaryToken).forEach(co => completer.request(co.summaryToken!.toString(), SubTokensOptions.CanElement | SubTokensOptions.CanAggregate));
+  }
 
   return completer.finished().then(() => {
 
     var result: FindOptionsParsed = {
       queryKey: qd.queryKey,
       groupResults: fo.groupResults == true,
-      pagination: fo.pagination != null ? fo.pagination : qs?.pagination ?? defaultPagination,
+      pagination: fo.pagination != null ? fo.pagination : qs?.pagination ?? Options.defaultPagination,
       systemTime: fo.systemTime,
 
       columnOptions: (fo.columnOptions ?? []).map(co => ({
         token: completer.get(co.token.toString()),
-        displayName: co.displayName ?? completer.get(co.token.toString()).niceName
+        displayName: (typeof co.displayName == "function" ? co.displayName() : co.displayName) ?? completer.get(co.token.toString()).niceName,
+        summaryToken: co.summaryToken && completer.get(co.summaryToken.toString()),
+        hiddenColumn: co.hiddenColumn,
       }) as ColumnOptionParsed),
 
       orderOptions: (fo.orderOptions ?? []).map(oo => ({
@@ -646,6 +760,25 @@ export function getQueryRequest(fo: FindOptionsParsed, qs?: QuerySettings): Quer
       .concat((!fo.groupResults && qs?.hiddenColumns || []).map(co => ({ token: co.token.toString(), displayName: "" }))),
     orders: fo.orderOptions.filter(a => a.token != undefined).map(oo => ({ token: oo.token.fullKey, orderType: oo.orderType })),
     pagination: fo.pagination,
+    systemTime: fo.systemTime,
+  };
+}
+
+export function getSummaryQueryRequest(fo: FindOptionsParsed): QueryRequest | null {
+
+  var summaryTokens = fo.columnOptions.filter(a => a.summaryToken != undefined).map(a => a.summaryToken!)
+    .filter(a => a.queryTokenType == "Aggregate");
+
+  if (summaryTokens.length == 0)
+    return null;
+
+  return {
+    queryKey: fo.queryKey,
+    groupResults: true,
+    filters: toFilterRequests(fo.filterOptions),
+    columns: summaryTokens.map(sqt => ({ token: sqt.fullKey, displayName: sqt.niceName! })),
+    orders: [],
+    pagination: { mode: "All" }, //Should be 1 result anyway
     systemTime: fo.systemTime,
   };
 }
@@ -687,22 +820,22 @@ function getTypeIfNew(val: any): string[] {
 
 
 
-export function exploreOrNavigate(findOptions: FindOptions): Promise<void> {
-  return fetchEntitiesWithFilters(findOptions.queryName, findOptions.filterOptions ?? [], [], 2).then(list => {
+export function exploreOrView(findOptions: FindOptions): Promise<void> {
+  return fetchEntitiesLiteWithFilters(findOptions.queryName, findOptions.filterOptions ?? [], [], 2).then(list => {
     if (list.length == 1)
-      return Navigator.navigate(list[0]);
+      return Navigator.view(list[0], { buttons: "close" }).then(() => undefined);
     else
       return explore(findOptions);
   });
 }
 
-export function getQueryValue(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], valueToken?: string): Promise<any> {
+export function getQueryValue(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], valueToken?: string, multipleValues?: boolean): Promise<any> {
   return getQueryDescription(queryName).then(qd => {
     return parseFilterOptions(filterOptions, false, qd).then(fops => {
 
       let filters = toFilterRequests(fops);
 
-      return API.queryValue({ queryKey: qd.queryKey, filters, valueToken });
+      return API.queryValue({ queryKey: qd.queryKey, filters, valueToken, multipleValues });
     });
   });
 }
@@ -739,11 +872,16 @@ export function toFilterRequest(fop: FilterOptionParsed, overridenValue?: Overri
     }
     else if (isFilterGroupOptionParsed(fop)) {
 
-      if (fop.pinned!.active == "WhenHasValue" && fop.value == null) {
+      if (fop.pinned.active == "WhenHasValue" && fop.value == null) {
         return undefined;
       }
 
-      return toFilterRequest(fop, { value: fop.value });
+      if (fop.pinned.active == "Checkbox_StartChecked") {
+
+      } else {
+        return toFilterRequest(fop, { value: fop.value });
+      }
+
     }
   }
 
@@ -795,14 +933,39 @@ export function toFilterRequest(fop: FilterOptionParsed, overridenValue?: Overri
   }
 }
 
-export function fetchEntitiesWithFilters<T extends Entity>(queryName: Type<T>, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Lite<T>[]>;
-export function fetchEntitiesWithFilters(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Lite<Entity>[]>;
-export function fetchEntitiesWithFilters(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Lite<Entity>[]> {
+export function fetchEntitiesLiteWithFilters<T extends Entity>(queryName: Type<T>, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Lite<T>[]>;
+export function fetchEntitiesLiteWithFilters(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Lite<Entity>[]>;
+export function fetchEntitiesLiteWithFilters(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Lite<Entity>[]> {
   return getQueryDescription(queryName).then(qd =>
     parseFilterOptions(filterOptions, false, qd)
       .then(fops =>
         parseOrderOptions(orderOptions, false, qd).then(oop =>
-          API.fetchEntitiesWithFilters({
+          API.fetchEntitiesLiteWithFilters({
+
+            queryKey: qd.queryKey,
+
+            filters: toFilterRequests(fops),
+
+            orders: oop.map(oo => ({
+              token: oo.token!.fullKey,
+              orderType: oo.orderType
+            }) as OrderRequest),
+
+            count: count
+          })
+        )
+      )
+  );
+}
+
+export function fetchEntitiesFullWithFilters<T extends Entity>(queryName: Type<T>, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<T[]>;
+export function fetchEntitiesFullWithFilters(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Entity[]>;
+export function fetchEntitiesFullWithFilters(queryName: PseudoType | QueryKey, filterOptions: FilterOption[], orderOptions: OrderOption[], count: number | null): Promise<Entity[]> {
+  return getQueryDescription(queryName).then(qd =>
+    parseFilterOptions(filterOptions, false, qd)
+      .then(fops =>
+        parseOrderOptions(orderOptions, false, qd).then(oop =>
+          API.fetchEntitiesFullWithFilters({
 
             queryKey: qd.queryKey,
 
@@ -855,7 +1018,16 @@ export function parseSingleToken(queryName: PseudoType | QueryKey, token: string
 }
 
 export class TokenCompleter {
-  constructor(public queryDescription: QueryDescription) { }
+
+  static globalCache: {
+    [queryKey: string]: {
+      [fullKey: string]: QueryToken
+    }
+  } = {};
+
+  queryCache: {
+    [fullKey: string]: QueryToken
+  };
 
   tokensToRequest: {
     [fullKey: string]: (
@@ -864,6 +1036,12 @@ export class TokenCompleter {
         token?: QueryToken,
       })
   } = {};
+
+  constructor(public queryDescription: QueryDescription)
+  {
+    this.queryCache = TokenCompleter.globalCache[queryDescription.queryKey] ??
+      (TokenCompleter.globalCache[queryDescription.queryKey] = {});
+  }
 
   requestFilter(fo: FilterOption, options: SubTokensOptions) {
 
@@ -881,6 +1059,19 @@ export class TokenCompleter {
 
     if (this.isSimple(fullKey))
       return;
+
+    var token = this.queryCache[fullKey];
+    if (token) {
+      if (hasAggregate(token) && (options & SubTokensOptions.CanAggregate) == 0)
+        throw new Error(`Token with key '${fullKey}' not found on query '${this.queryDescription.queryKey} (aggregates not allowed)`);
+
+      if (hasAnyOrAll(token) && (options & SubTokensOptions.CanAnyAll) == 0)
+        throw new Error(`Token with key '${fullKey}' not found on query '${this.queryDescription.queryKey} (Any/All not allowed)`);
+
+      if (hasElement(token) && (options & SubTokensOptions.CanElement) == 0)
+        throw new Error(`Token with key '${fullKey}' not found on query '${this.queryDescription.queryKey} (Element not allowed)`);
+      return;
+    }
 
     if (this.tokensToRequest[fullKey])
       return;
@@ -902,7 +1093,11 @@ export class TokenCompleter {
       return Promise.resolve(undefined);
 
     return API.parseTokens(this.queryDescription.queryKey, tokens).then(parsedTokens => {
-      parsedTokens.forEach(t => this.tokensToRequest[t.fullKey].token = t);
+      parsedTokens.forEach(t => {
+        this.tokensToRequest[t.fullKey].token = t;
+        if (!this.queryCache[t.fullKey])
+          this.queryCache[t.fullKey] = t;
+      });
     });
   }
 
@@ -917,6 +1112,10 @@ export class TokenCompleter {
       return toQueryToken(cd);
     }
 
+    if (this.queryCache[fullKey]) {
+      return this.queryCache[fullKey];
+    }
+
     return this.tokensToRequest[fullKey].token!;
   }
 
@@ -926,7 +1125,7 @@ export class TokenCompleter {
         token: fo.token && this.get(fo.token.toString()),
         groupOperation: fo.groupOperation,
         value: fo.value,
-        pinned: fo.pinned && { ...fo.pinned },
+        pinned: fo.pinned && toPinnedFilterParsed(fo.pinned),
         filters: fo.filters.map(f => this.toFilterOptionParsed(f)),
         frozen: false,
         expanded: false,
@@ -937,7 +1136,7 @@ export class TokenCompleter {
         operation: fo.operation ?? "EqualTo",
         value: fo.value,
         frozen: fo.frozen || false,
-        pinned: fo.pinned && { ...fo.pinned },
+        pinned: fo.pinned && toPinnedFilterParsed(fo.pinned),
       } as FilterConditionOptionParsed);
   }
 }
@@ -956,7 +1155,6 @@ export function parseFilterValues(filterOptions: FilterOptionParsed[]): Promise<
 
         fo.value = (fo.value as any[]).map(v => parseValue(fo.token!, v, needToStr));
       }
-
       else {
         if (Array.isArray(fo.value))
           throw new Error("Unespected array for operation " + fo.operation);
@@ -980,7 +1178,39 @@ function parseValue(token: QueryToken, val: any, needToStr: Array<any>): any {
     case "Boolean": return parseBoolean(val);
     case "Integer": return nanToNull(parseInt(val));
     case "Decimal": return nanToNull(parseFloat(val));
-    case "DateTime": return val == null ? null : val;
+    case "DateTime": {
+
+      if (val == null)
+        return null;
+
+      if (typeof val == "string") {
+
+        const dt = val.endsWith("Z") ? DateTime.fromISO(val, { zone: "utc" }) : DateTime.fromISO(val);
+
+        if (val.length == 10 && token.type.name == "DateTime") //Date -> DateTime
+          return dt.toISO();
+
+        if (val.length > 10 && token.type.name == "Date") //DateTime -> Date
+          return dt.toISODate();
+
+        return val;
+      }
+
+      if (val instanceof DateTime) {
+        if (token.type.name == "Date") //DateTime -> Date
+          return val.toISODate();
+        return val.toISO();
+      }
+
+      if (val instanceof Date) {
+        if (token.type.name == "Date") //DateTime -> Date
+          return DateTime.fromJSDate(val).toISODate();
+        return DateTime.fromJSDate(val).toISO();
+      }
+
+      return val;
+    }
+
     case "Lite":
       {
         const lite = convertToLite(val);
@@ -1022,8 +1252,9 @@ function convertToLite(val: string | Lite<Entity> | Entity | undefined): Lite<En
   throw new Error(`Impossible to convert ${val} to Lite`);
 }
 
-export function clearQueryDescriptionCache() {
+function clearQueryDescriptionCache() {
   queryDescriptionCache = {};
+  TokenCompleter.globalCache = {};
 }
 
 let queryDescriptionCache: { [queryKey: string]: Promise<QueryDescription> } = {};
@@ -1055,8 +1286,42 @@ export function inDB<R>(entity: Entity | Lite<Entity>, token: QueryTokenString<R
     .then(rt => rt.rows[0].columns[0]);
 }
 
-
 export type AddToLite<T> = T extends Entity ? Lite<T> : T;
+
+export function useQuery(fo: FindOptions | null, additionalDeps?: any[], options?: APIHookOptions): ResultTable | undefined | null {
+  return useAPI(
+    signal => fo == null ? Promise.resolve<ResultTable | null>(null) : getResultTable(fo, signal),
+    [fo && findOptionsPath(fo), ...(additionalDeps || [])],
+    options);
+}
+
+export function getResultTable(fo: FindOptions, signal?: AbortSignal): Promise<ResultTable> {
+  return getQueryDescription(fo.queryName)
+    .then(qd => parseFindOptions(fo!, qd, false))
+    .then(fop => API.executeQuery(getQueryRequest(fop), signal));
+}
+
+export function useInDB<R>(entity: Entity | Lite<Entity> | null, token: QueryTokenString<R> | string, additionalDeps?: any[], options?: APIHookOptions): AddToLite<R> | null | undefined {
+  var resultTable = useQuery(entity == null ? null : {
+    queryName: isEntity(entity) ? entity.Type : entity.EntityType,
+    filterOptions: [{ token: "Entity", value: entity }],
+    pagination: { mode: "Firsts", elementsPerPage: 1 },
+    columnOptions: [{ token: token }],
+    columnOptionsMode: "Replace",
+  }, additionalDeps, options);
+
+  if (entity == null)
+    return null;
+
+  if (resultTable == null)
+    return undefined;
+
+  return resultTable.rows[0]?.columns[0] ?? null;
+}
+
+export function useFetchAllLite<T extends Entity>(type: Type<T>, deps?: any[]): Lite<T>[] | undefined {
+  return useAPI(() => API.fetchAllLites({ types: type.typeName }), deps ?? []) as Lite<T>[] | undefined;
+}
 
 export module API {
 
@@ -1068,16 +1333,27 @@ export module API {
     return ajaxGet({ url: "~/api/query/queryEntity/" + queryKey });
   }
 
+  interface QueryRequestUrl extends QueryRequest {
+    queryUrl: string;
+  }
+
   export function executeQuery(request: QueryRequest, signal?: AbortSignal): Promise<ResultTable> {
-    return ajaxPost({ url: "~/api/query/executeQuery", signal }, request);
+  
+    const queryUrl = AppContext.history.location.pathname + AppContext.history.location.search;
+    const qr: QueryRequestUrl = { ...request, queryUrl: queryUrl};
+    return ajaxPost({ url: "~/api/query/executeQuery", signal }, qr);
   }
 
   export function queryValue(request: QueryValueRequest, avoidNotifyPendingRequest: boolean | undefined = undefined, signal?: AbortSignal): Promise<any> {
     return ajaxPost({ url: "~/api/query/queryValue", avoidNotifyPendingRequests: avoidNotifyPendingRequest, signal }, request);
   }
 
-  export function fetchEntitiesWithFilters(request: QueryEntitiesRequest): Promise<Lite<Entity>[]> {
-    return ajaxPost({ url: "~/api/query/entitiesWithFilter" }, request);
+  export function fetchEntitiesLiteWithFilters(request: QueryEntitiesRequest): Promise<Lite<Entity>[]> {
+    return ajaxPost({ url: "~/api/query/entitiesLiteWithFilter" }, request);
+  }
+
+  export function fetchEntitiesFullWithFilters(request: QueryEntitiesRequest): Promise<Entity[]>{
+    return ajaxPost({ url: "~/api/query/entitiesFullWithFilter" }, request);
   }
 
   export function fetchAllLites(request: { types: string }): Promise<Lite<Entity>[]> {
@@ -1093,17 +1369,13 @@ export module API {
   }
 
   export function findLiteLike(request: AutocompleteRequest, signal?: AbortSignal): Promise<Lite<Entity>[]> {
-    return ajaxGet({ url: "~/api/query/findLiteLike?" + QueryString.stringify(request), signal });
+    return ajaxGet({ url: "~/api/query/findLiteLike?" + QueryString.stringify({ ...request }), signal });
   }
 
   export interface AutocompleteRequest {
     types: string;
     subString: string;
     count: number;
-  }
-
-  export function FindRowsLike(request: AutocompleteQueryRequest, signal?: AbortSignal): Promise<ResultTable> {
-    return ajaxPost({ url: "~/api/query/findRowsLike", signal }, request);
   }
 
   export function parseTokens(queryKey: string, tokens: { token: string, options: SubTokensOptions }[]): Promise<QueryToken[]> {
@@ -1123,20 +1395,13 @@ export module API {
       return list;
     });
   }
-
-  export interface AutocompleteQueryRequest {
-    queryKey: string;
-    filters: FilterRequest[];
-    columns: ColumnRequest[];
-    orders: OrderRequest[];
-    subString: string;
-    count: number;
-  }
 }
 
 
 
-
+function shouldIgnoreValues(pinned?: PinnedFilter | null) {
+  return pinned != null && (pinned.active == "Always" || pinned.active == "WhenHasValue");
+}
 
 export module Encoder {
 
@@ -1153,7 +1418,7 @@ export module Encoder {
 
       if (fo.pinned) {
         var p = fo.pinned;
-        query["filterPinned" + index + identSuffix] = scapeTilde(p.label ?? "") +
+        query["filterPinned" + index + identSuffix] = scapeTilde(typeof p.label == "function" ? p.label() : p.label ?? "") +
           "~" + (p.column == null ? "" : p.column) +
           "~" + (p.row == null ? "" : p.row) +
           "~" + PinnedFilterActive.values().indexOf(p.active ?? "Always") +
@@ -1164,7 +1429,7 @@ export module Encoder {
       if (isFilterGroupOption(fo)) {
         query["filter" + index + identSuffix] = (fo.token ?? "") + "~" + (fo.groupOperation) + "~" + (ignoreValues ? "" : stringValue(fo.value));
 
-        fo.filters.forEach(f => encodeFilter(f, identation + 1, ignoreValues || Boolean(fo.pinned)));
+        fo.filters.forEach(f => encodeFilter(f, identation + 1, ignoreValues || shouldIgnoreValues(fo.pinned)));
       } else {
         query["filter" + index + identSuffix] = fo.token + "~" + (fo.operation ?? "EqualTo") + "~" + (ignoreValues ? "" : stringValue(fo.value));
       }
@@ -1181,8 +1446,18 @@ export module Encoder {
   }
 
   export function encodeColumns(query: any, columnOptions?: ColumnOption[]) {
-    if (columnOptions)
-      columnOptions.forEach((co, i) => query["column" + i] = co.token + (co.displayName ? ("~" + scapeTilde(co.displayName)) : ""));
+    if (columnOptions) {
+      columnOptions.forEach((co, i) => {
+
+        var displayName = co.hiddenColumn ? HIDDEN :
+          co.displayName ? scapeTilde(typeof co.displayName == "function" ? co.displayName() : co.displayName) :
+            undefined;
+
+        query["column" + i] = co.token + (displayName ? ("~" + displayName) : "");
+        if (co.summaryToken)
+          query["summary" + i] = co.summaryToken.toString();
+      });
+    }
   }
 
   export function stringValue(value: any): string {
@@ -1211,6 +1486,9 @@ export module Encoder {
 }
 
 
+
+
+const HIDDEN = "__";
 
 export module Decoder {
 
@@ -1271,7 +1549,7 @@ export module Decoder {
             groupOperation: FilterGroupOperation.assertDefined(parts[1]),
             value: ignoreValues ? null : unscapeTildes(parts[2]),
             pinned: pinned,
-            filters: toFilterList(gr.elements, identation + 1, ignoreValues || Boolean(pinned)),
+            filters: toFilterList(gr.elements, identation + 1, ignoreValues || shouldIgnoreValues(pinned)),
           }) as FilterGroupOption;
         }
       });
@@ -1287,26 +1565,37 @@ export module Decoder {
     return str.replace("#|#", "~");
   }
 
-  export function valuesInOrder(query: any, prefix: string): string[] {
+  export function valuesInOrder(query: any, prefix: string): { index: number, value: string }[] {
     const regex = new RegExp("^" + prefix + "(\\d*)$");
 
     return Dic.getKeys(query).map(s => regex.exec(s))
-      .filter(r => !!r).map(r => r!).orderBy(a => parseInt(a[1])).map(s => query[s[0]]);
+      .filter(r => !!r)
+      .map(r => ({ index: parseInt(r![1]), value: query[r![0]] }))
+      .orderBy(a => a.index);   
   }
 
   export function decodeOrders(query: any): OrderOption[] {
-    return valuesInOrder(query, "order").map(val => ({
-      orderType: val[0] == "-" ? "Descending" : "Ascending",
-      token: val[0] == "-" ? val.tryAfter("-") : val
+    return valuesInOrder(query, "order").map(p => ({
+      orderType: p.value[0] == "-" ? "Descending" : "Ascending",
+      token: p.value[0] == "-" ? p.value.tryAfter("-") : p.value
     } as OrderOption));
   }
 
-  export function decodeColumns(query: any): ColumnOption[] {
 
-    return valuesInOrder(query, "column").map(val => ({
-      token: val.tryBefore("~") ?? val,
-      displayName: unscapeTildes(val.tryAfter("~"))
-    }) as ColumnOption);
+  export function decodeColumns(query: any): ColumnOption[] {
+    var summary = valuesInOrder(query, "summary");
+
+    return valuesInOrder(query, "column").map(p => {
+
+      var displayName = unscapeTildes(p.value.tryAfter("~")); 
+
+      return ({
+        token: p.value.tryBefore("~") ?? p.value,
+        displayName: displayName == HIDDEN ? undefined : displayName,
+        hiddenColumn: displayName == HIDDEN ? true : undefined,
+        summaryToken: summary.firstOrNull(a => a.index == p.index)?.value
+      }) as ColumnOption;
+    });
   }
 }
 
@@ -1330,18 +1619,13 @@ export module ButtonBarQuery {
 
 }
 
-export let defaultPagination: Pagination = {
-  mode: "Paginate",
-  elementsPerPage: 20,
-  currentPage: 1,
-};
+
 
 export interface QuerySettings {
   queryName: PseudoType | QueryKey;
   pagination?: Pagination;
   allowSystemTime?: boolean;
-  defaultOrderColumn?: string | QueryTokenString<any>;
-  defaultOrderType?: OrderType;
+  defaultOrders?: OrderOption[];
   defaultFilters?: FilterOption[];
   hiddenColumns?: ColumnOption[];
   formatters?: { [token: string]: CellFormatter };
@@ -1351,12 +1635,13 @@ export interface QuerySettings {
   showContextMenu?: (fop: FindOptionsParsed) => boolean | "Basic";
   allowSelection?: boolean;
   getViewPromise?: (e: ModifiableEntity | null) => (undefined | string | Navigator.ViewPromise<ModifiableEntity>);
-  onDoubleClick?: (e: React.MouseEvent<any>, row: ResultRow, sc?: SearchControlLoaded) => void;
+  onDoubleClick?: (e: React.MouseEvent<any>, row: ResultRow, columns: string[], sc?: SearchControlLoaded) => void;
   simpleFilterBuilder?: (sfbc: SimpleFilterBuilderContext) => React.ReactElement<any> | undefined;
   onFind?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<Lite<Entity> | undefined>;
   onFindMany?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<Lite<Entity>[] | undefined>;
   onExplore?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<void>;
   extraButtons?: (searchControl: SearchControlLoaded) => (ButtonBarElement | null | undefined | false)[];
+  customGetPropsFromFilter?: (filters: FilterOptionParsed[]) => Promise<any>;
 }
 
 
@@ -1369,8 +1654,8 @@ export interface SimpleFilterBuilderContext {
 
 export interface FormatRule {
   name: string;
-  formatter: (column: ColumnOptionParsed) => CellFormatter;
-  isApplicable: (column: ColumnOptionParsed, sc: SearchControlLoaded | undefined) => boolean;
+  formatter: (column: QueryToken, sc: SearchControlLoaded | undefined) => CellFormatter;
+  isApplicable: (column: QueryToken, sc: SearchControlLoaded | undefined) => boolean;
 }
 
 export class CellFormatter {
@@ -1383,76 +1668,91 @@ export class CellFormatter {
 export interface CellFormatterContext {
   refresh?: () => void;
   systemTime?: SystemTime;
+  columns: string[];
+  row: ResultRow;
+  rowIndex: number;
 }
 
 
-export function getCellFormatter(qs: QuerySettings | undefined, co: ColumnOptionParsed, sc: SearchControlLoaded | undefined): CellFormatter | undefined {
-  if (!co.token)
-    return undefined;
+export function getCellFormatter(qs: QuerySettings | undefined, qt: QueryToken, sc: SearchControlLoaded | undefined): CellFormatter {
 
-  const result = qs?.formatters && qs.formatters[co.token.fullKey];
+  const result = qs?.formatters && qs.formatters[qt.fullKey];
 
   if (result)
     return result;
 
-  const prRoute = registeredPropertyFormatters[co.token.propertyRoute!];
+  const prRoute = registeredPropertyFormatters[qt.propertyRoute!];
   if (prRoute)
     return prRoute;
 
-  const rule = formatRules.filter(a => a.isApplicable(co, sc)).last("FormatRules");
+  const rule = formatRules.filter(a => a.isApplicable(qt, sc)).last("FormatRules");
 
-  return rule.formatter(co);
+  return rule.formatter(qt, sc);
 }
 
 export const registeredPropertyFormatters: { [typeAndProperty: string]: CellFormatter } = {};
 
-export function registerPropertyFormatter(pr: PropertyRoute, formater: CellFormatter) {
+export function registerPropertyFormatter(pr: PropertyRoute | string/*For expressions*/ |undefined, formater: CellFormatter) {
+  if (pr == null)
+    return;
   registeredPropertyFormatters[pr.toString()] = formater;
 }
-
 
 export const formatRules: FormatRule[] = [
   {
     name: "Object",
-    isApplicable: col => true,
-    formatter: col => new CellFormatter(cell => cell ? <span>{cell.toStr ?? cell.toString()}</span> : undefined)
+    isApplicable: qt => true,
+    formatter: qt => new CellFormatter(cell => cell ? <span>{cell.toStr ?? cell.toString()}</span> : undefined)
+  },
+  {
+    name: "Password",
+    isApplicable: qt => qt.format == "Password",
+    formatter: qt => new CellFormatter(cell => cell ? <span>•••••••</span> : undefined)
   },
   {
     name: "Enum",
-    isApplicable: col => col.token!.filterType == "Enum",
-    formatter: col => new CellFormatter(cell => {
+    isApplicable: qt => qt.filterType == "Enum",
+    formatter: qt => new CellFormatter(cell => {
       if (cell == undefined)
         return undefined;
 
-      var ei = getEnumInfo(col.token!.type.name, cell);
+      var ei = getEnumInfo(qt.type.name, cell);
 
       return <span>{ei ? ei.niceName : cell}</span>
     })
   },
   {
     name: "Lite",
-    isApplicable: col => col.token!.filterType == "Lite",
-    formatter: col => new CellFormatter((cell: Lite<Entity>, ctx) => !cell ? undefined : <EntityLink lite={cell} onNavigated={ctx.refresh} />)
+    isApplicable: qt => qt.filterType == "Lite",
+    formatter: qt => new CellFormatter((cell: Lite<Entity> | undefined, ctx) => !cell ? undefined : <EntityLink lite={cell} onNavigated={ctx.refresh} />)
   },
 
   {
     name: "Guid",
-    isApplicable: col => col.token!.filterType == "Guid",
-    formatter: col => new CellFormatter((cell: string) => cell && <span className="guid">{cell.substr(0, 4) + "…" + cell.substring(cell.length - 4)}</span>)
+    isApplicable: qt => qt.filterType == "Guid",
+    formatter: qt => new CellFormatter((cell: string | undefined) => cell && <span className="guid">{cell.substr(0, 4) + "…" + cell.substring(cell.length - 4)}</span>)
   },
   {
     name: "Date",
-    isApplicable: col => col.token!.filterType == "DateTime",
-    formatter: col => {
-      const momentFormat = toMomentFormat(col.token!.format);
-      return new CellFormatter((cell: string) => cell == undefined || cell == "" ? "" : <bdi className="date">{moment(cell).format(momentFormat)}</bdi>) //To avoid flippig hour and date (L LT) in RTL cultures
+    isApplicable: qt => qt.filterType == "DateTime",
+    formatter: qt => {
+      const luxonFormat = toLuxonFormat(qt.format, qt.type.name as "Date" | "DateTime");
+      return new CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date">{DateTime.fromISO(cell).toFormatFixed(luxonFormat)}</bdi>, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
+    }
+  },
+  {
+    name: "Time",
+    isApplicable: qt => qt.filterType == "Time",
+    formatter: qt => {
+      const durationFormat = toDurationFormat(qt.format);
+      return new CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date">{durationToString(cell, durationFormat)}</bdi>, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
     }
   },
   {
     name: "SystemValidFrom",
-    isApplicable: col => col.token!.fullKey.tryAfterLast(".") == "SystemValidFrom",
-    formatter: col => {
-      return new CellFormatter((cell: string, ctx) => {
+    isApplicable: qt => qt.fullKey.tryAfterLast(".") == "SystemValidFrom",
+    formatter: qt => {
+      return new CellFormatter((cell: string | undefined, ctx) => {
         if (cell == undefined || cell == "")
           return "";
 
@@ -1460,15 +1760,16 @@ export const formatRules: FormatRule[] = [
           ctx.systemTime && ctx.systemTime.mode == "Between" && ctx.systemTime.startDate! < cell ? "date-created" :
             undefined;
 
-        return <bdi className={classes("date", className)}>{moment(cell).format("YYYY-MM-DDTHH:mm:ss")}</bdi>; //To avoid flippig hour and date (L LT) in RTL cultures
-      });
+        const luxonFormat = toLuxonFormat(qt.format, qt.type.name as "Date" | "DateTime");
+        return <bdi className={classes("date", className)}>{DateTime.fromISO(cell).toFormatFixed(luxonFormat)}</bdi>; //To avoid flippig hour and date (L LT) in RTL cultures
+      }, "date-cell");
     }
   },
   {
     name: "SystemValidTo",
-    isApplicable: col => col.token!.fullKey.tryAfterLast(".") == "SystemValidTo",
-    formatter: col => {
-      return new CellFormatter((cell: string, ctx) => {
+    isApplicable: qt => qt.fullKey.tryAfterLast(".") == "SystemValidTo",
+    formatter: qt => {
+      return new CellFormatter((cell: string | undefined, ctx) => {
         if (cell == undefined || cell == "")
           return "";
 
@@ -1476,54 +1777,73 @@ export const formatRules: FormatRule[] = [
           ctx.systemTime && ctx.systemTime.mode == "Between" && cell < ctx.systemTime.endDate! ? "date-removed" :
             undefined;
 
-        return <bdi className={classes("date", className)}>{moment(cell).format("YYYY-MM-DDTHH:mm:ss")}</bdi>; //To avoid flippig hour and date (L LT) in RTL cultures
-      });
+        const luxonFormat = toLuxonFormat(qt.format, qt.type.name as "Date" | "DateTime");
+        return <bdi className={classes("date", className)}>{DateTime.fromISO(cell).toFormat(luxonFormat)}</bdi>; //To avoid flippig hour and date (L LT) in RTL cultures
+      }, "date-cell");
     }
   },
   {
     name: "Number",
-    isApplicable: col => col.token!.filterType == "Integer" || col.token!.filterType == "Decimal",
-    formatter: col => {
-      const numbroFormat = toNumbroFormat(col.token!.format);
-      return new CellFormatter((cell: number) => cell == undefined ? "" : <span>{numbro(cell).format(numbroFormat)}</span>, "numeric-cell");
+    isApplicable: qt => qt.filterType == "Integer" || qt.filterType == "Decimal",
+    formatter: qt => {
+      const numberFormat = toNumberFormat(qt.format);
+      return new CellFormatter((cell: number | undefined) => cell == undefined ? "" : <span>{numberFormat.format(cell)}</span>, "numeric-cell");
     }
   },
   {
     name: "Number with Unit",
-    isApplicable: col => (col.token!.filterType == "Integer" || col.token!.filterType == "Decimal") && !!col.token!.unit,
-    formatter: col => {
-      const numbroFormat = toNumbroFormat(col.token!.format);
-      return new CellFormatter((cell: number) => cell == undefined ? "" : <span>{numbro(cell).format(numbroFormat) + "\u00a0" + col.token!.unit}</span>, "numeric-cell");
+    isApplicable: qt => (qt.filterType == "Integer" || qt.filterType == "Decimal") && Boolean(qt.unit),
+    formatter: qt => {
+      const numberFormat = toNumberFormat(qt.format);
+      return new CellFormatter((cell: number | undefined) => cell == undefined ? "" : <span>{numberFormat.format(cell) + "\u00a0" + qt.unit}</span>, "numeric-cell");
     }
   },
   {
     name: "Bool",
-    isApplicable: col => col.token!.filterType == "Boolean",
-    formatter: col => new CellFormatter((cell: boolean) => cell == undefined ? undefined : <input type="checkbox" disabled={true} checked={cell} />, "centered-cell")
+    isApplicable: qt => qt.filterType == "Boolean",
+    formatter: col => new CellFormatter((cell: boolean | undefined) => cell == undefined ? undefined : <input type="checkbox" disabled={true} checked={cell} />, "centered-cell")
   },
 ];
 
 export interface EntityFormatRule {
   name: string;
   formatter: EntityFormatter;
-  isApplicable: (row: ResultRow, sc: SearchControlLoaded | undefined) => boolean;
+  isApplicable: (sc: SearchControlLoaded | undefined) => boolean;
 }
 
-export type EntityFormatter = (row: ResultRow, columns: string[], sc?: SearchControlLoaded) => React.ReactChild | undefined;
+export class EntityFormatter {
+  constructor(
+    public formatter: (row: ResultRow, columns: string[], sc?: SearchControlLoaded) => React.ReactChild | undefined,
+    public cellClass?: string) {
+  }
+}
 
 export const entityFormatRules: EntityFormatRule[] = [
   {
     name: "View",
-    isApplicable: row => true,
-    formatter: (row, columns, sc) => !row.entity || !Navigator.isNavigable(row.entity.EntityType, undefined, true) ? undefined :
+    isApplicable: sc => true,
+    formatter: new EntityFormatter((row, columns, sc) => !row.entity || !Navigator.isViewable(row.entity.EntityType, { isSearch: true }) ? undefined :
       <EntityLink lite={row.entity}
         inSearch={true}
         onNavigated={sc?.handleOnNavigated}
         getViewPromise={sc && (sc.props.getViewPromise ?? sc.props.querySettings?.getViewPromise)}
-        inPlaceNavigation={sc?.props.navigate == "InPlace"} className="sf-line-button sf-view">
+        inPlaceNavigation={sc?.props.view == "InPlace"} className="sf-line-button sf-view">
         <span title={EntityControlMessage.View.niceToString()}>
           {EntityBaseController.viewIcon}
         </span>
-      </EntityLink>
+      </EntityLink>, "centered-cell")
+  },
+  {
+    name: "View",
+    isApplicable: sc => sc?.state.resultFindOptions?.groupResults == true,
+    formatter: new EntityFormatter((row, columns, sc) => 
+      <a href="#"
+        className="sf-line-button sf-view"
+        onClick={e => { e.preventDefault(); sc!.openRowGroup(row); }}
+      >
+        <span title={JavascriptMessage.ShowGroup.niceToString()}>
+          <FontAwesomeIcon icon="layer-group"/>
+        </span>
+      </a>, "centered-cell")
   },
 ];

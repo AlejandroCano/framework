@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Signum.Utilities.DataStructures
 {
@@ -30,14 +31,14 @@ namespace Signum.Utilities.DataStructures
             this.map.Add(key, value);
         }
 
-        public bool TryGetValue(TKey key, out TValue value)
+        public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
         {
             for (ScopedDictionary<TKey, TValue>? scope = this; scope != null; scope = scope.previous)
             {
                 if (scope.map.TryGetValue(key, out value))
                     return true;
             }
-            value = default(TValue)!;
+            value = default!;
             return false;
         }
 
@@ -73,7 +74,7 @@ namespace Signum.Utilities.DataStructures
 
         public TValue GetOrCreate(TKey key, Func<TValue> valueFactory)
         {
-            if (!TryGetValue(key, out TValue result))
+            if (!TryGetValue(key, out TValue? result))
             {
                 result = valueFactory();
                 Add(key, result);

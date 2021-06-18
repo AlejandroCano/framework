@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Signum.Utilities;
 
@@ -55,12 +56,21 @@ namespace Signum.Entities.DynamicQuery
         }
     }
 
-    [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
+    [DescriptionOptions(DescriptionOptions.Members | DescriptionOptions.Description), InTypeScript(true)]
     public enum PaginationMode
     {
         All,
+        [Description("First")]
         Firsts,
+        [Description("Pages")]
         Paginate
+    }
+
+    [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
+    public enum RefreshMode
+    {
+        Auto,
+        Manual
     }
 
     [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
@@ -195,6 +205,9 @@ namespace Signum.Entities.DynamicQuery
     public class QueryValueRequest : BaseQueryRequest
     {
         public QueryToken? ValueToken { get; set; }
+
+        public bool MultipleValues { get; set; }
+
         public SystemTime? SystemTime { get; set; }
 
         public List<CollectionElementToken> Multiplications

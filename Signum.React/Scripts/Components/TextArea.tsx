@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { whenVisible } from '../Hooks';
 
 interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   innerRef?: React.Ref<HTMLTextAreaElement>;
@@ -8,7 +9,13 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export default function TextArea(p: TextAreaProps) {
 
-  function handleResize(ta: HTMLTextAreaElement) {
+  var textAreaRef = React.useRef<HTMLTextAreaElement | null | undefined>();
+  const visibleObserver = React.useRef<IntersectionObserver | null>(null);
+
+    function handleResize(ta: HTMLTextAreaElement) {
+    if (ta.style.height == ta.scrollHeight + 'px') { // do not move to a variable
+        return;
+    }
     ta.style.height = "0";
     ta.style.height = ta.scrollHeight + 'px';
     ta.style.minHeight = p.minHeight!;
@@ -17,20 +24,47 @@ export default function TextArea(p: TextAreaProps) {
 
   const { autoResize, innerRef, minHeight, ...props } = p;
 
-  const handleRef = React.useCallback((a: HTMLTextAreaElement | null) => {
-    a && handleResize(a);
-    innerRef && (typeof innerRef == "function" ? innerRef(a) : (innerRef as any).current = a);
+  const handleRef = React.useCallback((ta: HTMLTextAreaElement | null) => {
+    textAreaRef.current = ta;
+
+    if (visibleObserver.current)
+      visibleObserver.current.disconnect();
+
+    if (ta && p.autoResize) {
+      if (ta.offsetParent != null)
+        handleResize(ta);
+      else
+        visibleObserver.current = whenVisible(ta, visible => visible && handleResize(ta), { root: document.documentElement });
+    }
+    innerRef && (typeof innerRef == "function" ? innerRef(ta) : (innerRef as any).current = ta);
   }, [innerRef, minHeight]);
 
+  React.useEffect(() => {
+    if (p.autoResize && textAreaRef.current && p.value != null)
+      handleResize(textAreaRef.current);
+  }, [p.value]);
+
+  React.useEffect(() => {
+    return () => {
+      if (visibleObserver.current)
+        visibleObserver.current.disconnect();
+    };
+  }, []);
+
   return (
-    <textarea onInput={autoResize ? (e => handleResize(e.currentTarget)) : undefined} style={
+    <textarea {...props} onInput={e => {
+      if (p.autoResize) {
+        handleResize(e.currentTarget);
+      }
+      if (p.onInput)
+        p.onInput(e);
+    }} style={
       {
         ...(autoResize ? { display: "block", overflow: "hidden", resize: "none" } : {}),
         ...props.style
       }
-    } {...props} ref={handleRef} />
+    } ref={handleRef} />
   );
 }
 
 TextArea.defaultProps = { autoResize: true, minHeight: "50px" };
-

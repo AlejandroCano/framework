@@ -33,7 +33,7 @@ namespace Signum.Engine.DynamicQuery
             {
                 DQueryable<T> query = GetDQueryable(request);
 
-                var result = query.TryPaginate(request.Pagination);
+                var result = query.TryPaginate(request.Pagination, request.SystemTime);
 
                 return result.ToResultTable(request);
             }
@@ -45,7 +45,7 @@ namespace Signum.Engine.DynamicQuery
             {
                 DQueryable<T> query = GetDQueryable(request);
 
-                var result = await query.TryPaginateAsync(request.Pagination, token);
+                var result = await query.TryPaginateAsync(request.Pagination, request.SystemTime, token);
 
                 return result.ToResultTable(request);
             }
@@ -57,7 +57,7 @@ namespace Signum.Engine.DynamicQuery
             {
                 DQueryable<T> query = GetDQueryable(request);
 
-                var result = query.TryPaginate(request.Pagination);
+                var result = query.TryPaginate(request.Pagination, request.SystemTime);
 
                 return result.ToResultTable(request);
             }
@@ -69,7 +69,7 @@ namespace Signum.Engine.DynamicQuery
             {
                 DQueryable<T> query = GetDQueryable(request);
 
-                var result = await query.TryPaginateAsync(request.Pagination, token);
+                var result = await query.TryPaginateAsync(request.Pagination, request.SystemTime, token);
 
                 return result.ToResultTable(request);
             }
@@ -79,7 +79,8 @@ namespace Signum.Engine.DynamicQuery
         {
             if (!request.GroupResults)
             {
-                request.Columns.Insert(0, new _EntityColumn(EntityColumnFactory().BuildColumnDescription(), QueryName));
+                if(!request.Columns.Where(c => c is _EntityColumn).Any())
+                    request.Columns.Insert(0, new _EntityColumn(EntityColumnFactory().BuildColumnDescription(), QueryName));
 
                 return Query
                     .ToDQueryable(GetQueryDescription())
@@ -120,10 +121,10 @@ namespace Signum.Engine.DynamicQuery
                 if (request.ValueToken == null)
                     return query.Query.Count();
 
-                if (request.ValueToken is AggregateToken)
-                    return query.SimpleAggregate((AggregateToken)request.ValueToken);
+                if (request.ValueToken is AggregateToken at)
+                    return query.SimpleAggregate(at);
 
-                return query.SelectOne(request.ValueToken).Unique(UniqueType.Single);
+                return query.SelectOne(request.ValueToken).Unique(UniqueType.SingleOrDefault);
             }
         }
 
@@ -138,10 +139,13 @@ namespace Signum.Engine.DynamicQuery
                 if (request.ValueToken == null)
                     return await query.Query.CountAsync(token);
 
-                if (request.ValueToken is AggregateToken)
-                    return await query.SimpleAggregateAsync((AggregateToken)request.ValueToken, token);
+                if (request.ValueToken is AggregateToken at)
+                    return await query.SimpleAggregateAsync(at, token);
 
-                return await query.SelectOne(request.ValueToken).UniqueAsync(UniqueType.Single, token);
+                if (request.MultipleValues)
+                    return await query.SelectOne(request.ValueToken).ToListAsync(token);
+
+                return await query.SelectOne(request.ValueToken).UniqueAsync(UniqueType.SingleOrDefault, token);
             }
         }
 
@@ -179,7 +183,7 @@ namespace Signum.Engine.DynamicQuery
             return (Lite<Entity>?)result;
         }
 
-        public override IQueryable<Lite<Entity>> GetEntities(QueryEntitiesRequest request)
+        public override IQueryable<Lite<Entity>> GetEntitiesLite(QueryEntitiesRequest request)
         {
             var ex = new _EntityColumn(EntityColumnFactory().BuildColumnDescription(), QueryName);
 
@@ -191,6 +195,25 @@ namespace Signum.Engine.DynamicQuery
              .Select(new List<Column> { ex });
 
             var result = query.Query.Select(query.Context.GetEntitySelector());
+
+            if (request.Multiplications.Any())
+                result = result.Distinct();
+
+            return result.TryTake(request.Count);
+        }
+
+        public override IQueryable<Entity> GetEntitiesFull(QueryEntitiesRequest request)
+        {
+            var ex = new _EntityColumn(EntityColumnFactory().BuildColumnDescription(), QueryName);
+
+            DQueryable<T> query = Query
+             .ToDQueryable(GetQueryDescription())
+             .SelectMany(request.Multiplications)
+             .OrderBy(request.Orders)
+             .Where(request.Filters)
+             .Select(new List<Column> { ex });
+
+            var result = query.Query.Select(query.Context.GetEntityFullSelector());
 
             if (request.Multiplications.Any())
                 result = result.Distinct();

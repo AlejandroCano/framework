@@ -148,7 +148,7 @@ namespace Signum.Utilities
 
         public Node()
         {
-            Value = default(T)!;
+            Value = default!;
             Children = new ObservableCollection<Node<T>>();
         }
 
@@ -157,11 +157,8 @@ namespace Signum.Utilities
         {
             return "{0} Children: {1}".FormatWith(Children.Count, Value);
         }
-
-        void Never()
-        {
-            PropertyChanged?.Invoke(null, null);
-        }
+#pragma warning disable CS0067
         public event PropertyChangedEventHandler? PropertyChanged;
+#pragma warning restore CS0067
     }
 }

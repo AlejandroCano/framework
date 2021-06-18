@@ -68,8 +68,11 @@ table.sf-search-results > tbody > tr > td {
     opacity: .5;
 }
 
+.sf-hidden-column{
+    color: darkgray
+}
+
 .sf-search-results > thead > tr > th {
-   
     border-left: 1px solid #eee;
     border-right: 1px solid #eee;
     cursor: pointer;
@@ -112,7 +115,7 @@ table.sf-search-results > tbody > tr > td {
     border-radius: 4px;
 }
 
-    .sf-column-editor.error {
+    .sf-column-editor .error {
         background: #f2dede;
     }
 
@@ -129,16 +132,21 @@ table.sf-search-results th.sf-current-column {
     border-bottom: 2px solid #aaa;
 }
 
-    table.sf-search-results th.sf-current-column.error {
+    table.sf-search-results th.sf-current-column.error,
+    table.sf-search-results th.error {
         background-color: #f2dede;
         border-bottom: 2px solid #a94442;
     }
 
-td.numeric-cell {
+.date-cell {
     text-align: right
 }
 
-td.centered-cell {
+.numeric-cell {
+    text-align: right
+}
+
+.centered-cell {
     text-align: center
 }
 
@@ -270,6 +278,10 @@ span.guid {
     white-space: nowrap;
 }
 
+.dropdown-item.active span.guid {
+    color: lightblue;
+}
+
 bdi.date {
     white-space: nowrap;
 }
@@ -306,6 +318,7 @@ span.sf-search-entity-error {
 .count-search {
     margin-right: 4px;
     margin-left: 4px;
+    width: initial !important;
 }
 
 ul.sf-context-menu li a:not([disabled]) {
@@ -313,17 +326,22 @@ ul.sf-context-menu li a:not([disabled]) {
 }
 
 
-.sf-query-token-part .rw-btn rw-btn-select {
-    width: 1.4em;
-}
-
-
-.sf-query-token-part .rw-input.rw-dropdown-list-input {
-    cursor: pointer;
-}
-
 .sf-query-token-part .rw-list-empty, .rw-list-option, .rw-list-optgroup {
     padding: 0 .5em;
+}
+
+.rw-list-option.rw-state-selected span[style]{
+    color: inherit !important;
+}
+
+.sf-prefix-btn {
+    padding: 0px 2px;
+    vertical-align: text-bottom;
+}
+
+/* [data-intent=keyboard] */ .rw-list-option.rw-state-focus:not(.rw-state-selected) {
+    background-color: #e9ecef;
+    border-color: #e9ecef;
 }
 
 .sf-hide-group-button{
@@ -334,4 +352,8 @@ ul.sf-context-menu li a:not([disabled]) {
 .sf-show-group-button {
     font-weight: bold;
     color: black;
+}
+
+select.sf-pagination-mode, select.sf-elements-per-page {
+    vertical-align: text-top;
 }

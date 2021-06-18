@@ -60,25 +60,26 @@ namespace Signum.Test.LinqProvider
             if (!Connector.Current.SupportsTemporalTables)
                 return;
 
-            Interval<DateTime> period;
+            NullableInterval<DateTimeOffset> period;
             using (SystemTime.Override(new SystemTime.All()))
             {
                 period = Database.Query<FolderEntity>().Where(a => a.Name == "X2").Select(a => a.SystemPeriod()).Single();
             }
 
-            using (SystemTime.Override(new SystemTime.AsOf(period.Min)))
+
+            using (SystemTime.Override(new SystemTime.AsOf(period.Min!.Value)))
             {
-                var a = Database.Query<FolderEntity>().Where(f1 => f1.Name == "X2").ToList();
+                var list = Database.Query<FolderEntity>().Where(f1 => f1.Name == "X2").Select(a => a.SystemPeriod()).ToList();
             }
 
-            using (SystemTime.Override(new SystemTime.Between(period.Max, period.Max.AddSeconds(1))))
+            using (SystemTime.Override(new SystemTime.Between(period.Max!.Value, period.Max.Value.AddSeconds(1))))
             {
-                var a = Database.Query<FolderEntity>().Where(f1 => f1.Name == "X2").ToList();
+                var list = Database.Query<FolderEntity>().Where(f1 => f1.Name == "X2").Select(a => a.SystemPeriod()).ToList();
             }
 
-            using (SystemTime.Override(new SystemTime.FromTo(period.Max, period.Max.AddSeconds(1))))
+            using (SystemTime.Override(new SystemTime.ContainedIn(period.Max.Value, period.Max.Value.AddSeconds(1))))
             {
-                var b = Database.Query<FolderEntity>().Where(f2 => f2.Name == "X2").ToList();
+                var list = Database.Query<FolderEntity>().Where(f2 => f2.Name == "X2").Select(a => a.SystemPeriod()).ToList();
             }
         }
     }

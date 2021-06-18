@@ -119,7 +119,7 @@ namespace Signum.Entities
                         var id = ((Lite<Entity>)o).IdOrNull;
                         Sb.Append(id.HasValue ? "({0})".FormatWith(id.Value) : "");
                     }
-                    Sb.Append(" /* [CICLE] {0} */".FormatWith(SafeToString(o!)));
+                    Sb.Append(" /* [ALREADY] {0} */".FormatWith(SafeToString(o!)));
                     return;
                 }
 
@@ -272,7 +272,7 @@ namespace Signum.Entities
 
             private bool IsMixinField(FieldInfo field)
             {
-                return field.Name == "mixin" && field.DeclaringType == typeof(Entity) ||
+                return  field.Name == "mixin" && field.DeclaringType == typeof(ModifiableEntity) ||
                     field.Name == "next" && field.DeclaringType == typeof(MixinEntity);
             }
 
@@ -345,9 +345,9 @@ namespace Signum.Entities
                     if (item is bool)
                         value = value.ToLower();
 
-                    if (item is DateTime)
+                    if (item is DateTime dt)
                     {
-                        value = "DateTime.Parse(\"{0}\")".FormatWith(value);
+                        value = "DateTime.Parse(\"{0}\")".FormatWith(dt.ToString("O"));
                     }
                 }
 

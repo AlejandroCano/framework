@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { PropertyRoute, PropertyRouteType, getLambdaMembers, IBinding, ReadonlyBinding, createBinding, MemberType, Type, PseudoType, getTypeName, Binding, getFieldMembers, LambdaMember, IType, isType } from './Reflection'
-import { ModelState, MList, ModifiableEntity, EntityPack, Entity, MixinEntity } from './Signum.Entities'
+import { PropertyRoute, PropertyRouteType, getLambdaMembers, IBinding, ReadonlyBinding, createBinding, MemberType, Type, PseudoType, getTypeName, Binding, getFieldMembers, LambdaMember, IType, isType, tryGetTypeInfo } from './Reflection'
+import { ModelState, MList, ModifiableEntity, EntityPack, Entity, MixinEntity, ModelEntity } from './Signum.Entities'
 import { EntityOperationContext } from './Operations'
 import { MListElementBinding } from "./Reflection";
 import { classes } from './Globals';
+import { EmbeddedWidget } from './Frames/Widgets';
 
 export type FormGroupStyle =
   "None" |  /// Only the value is rendered. Unaffected by FormGroupSize
@@ -38,7 +39,7 @@ export class StyleContext {
       labelColumns: { sm: 2 },
       readOnly: false,
       placeholderLabels: false,
-      titleLabels: false,
+      titleLabels: true,
       readonlyAsPlainText: false,
       frame: undefined,
     });
@@ -229,7 +230,7 @@ export interface BsColumns {
 
 export class TypeContext<T> extends StyleContext {
 
-  propertyRoute: PropertyRoute;
+  propertyRoute: PropertyRoute | undefined; /*Because of optional TypeInfo*/
   binding: IBinding<T>;
   prefix: string;
 
@@ -263,7 +264,7 @@ export class TypeContext<T> extends StyleContext {
     return new TypeContext(parent, styleOptions, PropertyRoute.root(value.Type), new ReadonlyBinding<T>(value, ""));
   }
 
-  constructor(parent: StyleContext | undefined, styleOptions: StyleOptions | undefined, propertyRoute: PropertyRoute /*| undefined*/, binding: IBinding<T>, prefix?: string) {
+  constructor(parent: StyleContext | undefined, styleOptions: StyleOptions | undefined, propertyRoute: PropertyRoute | undefined, binding: IBinding<T>, prefix?: string) {
     super(parent, styleOptions);
     this.propertyRoute = propertyRoute;
     this.binding = binding;
@@ -284,7 +285,7 @@ export class TypeContext<T> extends StyleContext {
         isType(arg) ? [{ type: "Mixin", name: arg.typeName } as LambdaMember] :
           getFieldMembers(arg);
 
-    const subRoute = lambdaMembers.reduce<PropertyRoute>((pr, m) => pr.addLambdaMember(m), this.propertyRoute);
+    const subRoute = lambdaMembers.reduce<PropertyRoute | undefined>((pr, m) => pr && pr.tryAddLambdaMember(m), this.propertyRoute);
 
     const binding = createBinding(this.value, lambdaMembers);
 
@@ -300,7 +301,7 @@ export class TypeContext<T> extends StyleContext {
     if (type.typeName != entity.Type)
       throw new Error(`Impossible to cast ${entity.Type} into ${type.typeName}`);
 
-    var newPr = this.propertyRoute.typeReference().name == type.typeName ? this.propertyRoute : PropertyRoute.root(type);
+    var newPr = this.propertyRoute == null ? undefined : this.propertyRoute.typeReference().name == type.typeName ? this.propertyRoute : PropertyRoute.root(type);
 
     const result = new TypeContext<any>(this, undefined, newPr, new ReadonlyBinding(entity, ""));
 
@@ -314,7 +315,7 @@ export class TypeContext<T> extends StyleContext {
     if (type.typeName != entity.Type)
       return undefined;
 
-    var newPr = this.propertyRoute.typeReference().name == type.typeName ? this.propertyRoute : PropertyRoute.root(type);
+    var newPr = this.propertyRoute!.typeReference().name == type.typeName ? this.propertyRoute : PropertyRoute.root(type);
 
     const result = new TypeContext<any>(this, undefined, newPr, new ReadonlyBinding(entity, ""));
 
@@ -336,6 +337,19 @@ export class TypeContext<T> extends StyleContext {
     var path = suffix == null ? this.prefix : (this.prefix + "." + suffix);
 
     return path.replace(/.\[\]/, "_");
+  }
+
+  tryFindRootEntity(): TypeContext<ModelEntity | Entity> | undefined {
+    let current: TypeContext<any> = this;
+    while (current) {
+      const entity = current.value as ModifiableEntity;
+      if (entity && entity.Type && tryGetTypeInfo(entity.Type))
+        return current as TypeContext<ModifiableEntity>;
+
+      current = current.parent as TypeContext<any>;
+    }
+
+    return undefined;
   }
 
   tryFindParentCtx<S extends ModifiableEntity>(type: Type<S>): TypeContext<S> | undefined;
@@ -439,11 +453,14 @@ export interface IHasChanges {
   entityHasChanges?: () => boolean;
 }
 
+export interface FunctionalFrameComponent {
+  forceUpdate(): void;
+  type: Function;
+}
+
 export interface EntityFrame {
-  frameComponent: {
-    forceUpdate(): void,
-    createNew?(): (Promise<EntityPack<ModifiableEntity> | undefined>) | undefined
-  };
+  frameComponent: FunctionalFrameComponent | React.Component;
+  tabs: EmbeddedWidget[] | undefined;
   entityComponent: React.Component | null | undefined;
   pack: EntityPack<ModifiableEntity>;
   onReload: (pack?: EntityPack<ModifiableEntity>, reloadComponent?: boolean, callback?: () => void) => void;
@@ -451,13 +468,15 @@ export interface EntityFrame {
   revalidate: () => void;
   onClose: (pack?: EntityPack<ModifiableEntity>) => void;
   refreshCount: number;
-  allowChangeEntity: boolean;
+  allowExchangeEntity: boolean;
+  avoidPrompt?: () => void;
+  createNew?: (oldPack: EntityPack<ModifiableEntity>) => (Promise<EntityPack<ModifiableEntity> | undefined>) | undefined;
+  prefix: string;
 }
 
 export function mlistItemContext<T>(ctx: TypeContext<MList<T>>): TypeContext<T>[] {
-
-  return ctx.value!.map((mle, i) => new TypeContext<T>(ctx, undefined,
-    ctx.propertyRoute.addMember("Indexer", ""),
+  const elemPR = ctx.propertyRoute!.addMember("Indexer", "", true);
+  return ctx.value!.map((mle, i) => new TypeContext<T>(ctx, undefined, elemPR,
     new MListElementBinding<T>(ctx.binding, i),
   ));
 }

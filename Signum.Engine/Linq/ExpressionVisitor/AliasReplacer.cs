@@ -24,6 +24,16 @@ namespace Signum.Engine.Linq
             return ap.Visit(source);
         }
 
+        protected internal override Expression VisitAggregateRequest(AggregateRequestsExpression request)
+        {
+            var ag = (AggregateExpression)this.Visit(request.Aggregate);
+            var newAlias = aliasMap.TryGetC(request.GroupByAlias) ?? request.GroupByAlias;
+            if (ag != request.Aggregate || request.GroupByAlias != newAlias)
+                return new AggregateRequestsExpression(newAlias, ag);
+
+            return request;
+        }
+
         protected internal override Expression VisitColumn(ColumnExpression column)
         {
             if(aliasMap.ContainsKey(column.Alias))
@@ -40,9 +50,9 @@ namespace Signum.Engine.Linq
 
         protected internal override Expression VisitSelect(SelectExpression select)
         {
-            Expression top = this.Visit(select.Top);
+            Expression? top = this.Visit(select.Top);
             SourceExpression from = this.VisitSource(select.From!);
-            Expression where = this.Visit(select.Where);
+            Expression? where = this.Visit(select.Where);
             ReadOnlyCollection<ColumnDeclaration> columns =  Visit(select.Columns, VisitColumnDeclaration);
             ReadOnlyCollection<OrderExpression> orderBy = Visit(select.OrderBy, VisitOrderBy);
             ReadOnlyCollection<Expression> groupBy = Visit(select.GroupBy, Visit);
@@ -54,15 +64,36 @@ namespace Signum.Engine.Linq
             return select;
         }
 
+        protected internal override Expression VisitSqlTableValuedFunction(SqlTableValuedFunctionExpression sqlFunction)
+        {
+            ReadOnlyCollection<Expression> args = Visit(sqlFunction.Arguments);
+            Alias newAlias = aliasMap.TryGetC(sqlFunction.Alias) ?? sqlFunction.Alias;
+            if (args != sqlFunction.Arguments || sqlFunction.Alias != newAlias)
+                return new SqlTableValuedFunctionExpression(sqlFunction.SqlFunction, sqlFunction.ViewTable, sqlFunction.SingleColumnType, newAlias, args);
+            return sqlFunction;
+        }
+
+        protected internal override Expression VisitSetOperator(SetOperatorExpression set)
+        {
+            SourceWithAliasExpression left = (SourceWithAliasExpression)this.VisitSource(set.Left)!;
+            SourceWithAliasExpression right = (SourceWithAliasExpression)this.VisitSource(set.Right)!;
+            Alias newAlias = aliasMap.TryGetC(set.Alias) ?? set.Alias;
+            if (left != set.Left || right != set.Right || newAlias != set.Alias)
+            {
+                return new SetOperatorExpression(set.Operator, left, right, newAlias);
+            }
+            return set;
+        }
+
         protected internal override Expression VisitEntity(EntityExpression ee)
         {
-            var bindings = Visit(ee.Bindings, VisitFieldBinding);
-            var mixins = Visit(ee.Mixins, VisitMixinEntity);
+            var bindings = Visit(ee.Bindings!, VisitFieldBinding);
+            var mixins = Visit(ee.Mixins!, VisitMixinEntity);
 
             var externalId = (PrimaryKeyExpression)Visit(ee.ExternalId);
-            var externalPeriod = (NewExpression)Visit(ee.ExternalPeriod);
+            var externalPeriod = (IntervalExpression?)Visit(ee.ExternalPeriod);
 
-            var period = (NewExpression)Visit(ee.TablePeriod);
+            var period = (IntervalExpression?)Visit(ee.TablePeriod);
 
             Alias? newAlias = ee.TableAlias == null ? null : aliasMap.TryGetC(ee.TableAlias) ?? ee.TableAlias;
 

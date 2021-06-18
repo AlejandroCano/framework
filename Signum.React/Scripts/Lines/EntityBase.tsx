@@ -5,7 +5,7 @@ import * as Constructor from '../Constructor'
 import * as Finder from '../Finder'
 import { FindOptions } from '../FindOptions'
 import { TypeContext } from '../TypeContext'
-import { PropertyRoute, getTypeInfos, TypeInfo, IsByAll, TypeReference, getTypeInfo } from '../Reflection'
+import { PropertyRoute, tryGetTypeInfos, TypeInfo, IsByAll, TypeReference, getTypeInfo, getTypeInfos } from '../Reflection'
 import { ModifiableEntity, Lite, Entity, EntityControlMessage, toLiteFat, is, entityInfo, SelectorMessage, toLite } from '../Signum.Entities'
 import { LineBaseController, LineBaseProps } from './LineBase'
 import SelectorModal from '../SelectorModal'
@@ -15,7 +15,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 export interface EntityBaseProps extends LineBaseProps {
   view?: boolean | ((item: any/*T*/) => boolean);
   viewOnCreate?: boolean;
-  navigate?: boolean;
   create?: boolean;
   createOnFind?: boolean;
   find?: boolean;
@@ -26,7 +25,8 @@ export interface EntityBaseProps extends LineBaseProps {
   onFind?: () => Promise<ModifiableEntity | Lite<Entity> | undefined> | undefined;
   onRemove?: (entity: any /*T*/) => Promise<boolean>;
   findOptions?: FindOptions;
-  extraButtons?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
+  extraButtonsBefore?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
+  extraButtonsAfter?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
   liteToString?: (e: any /*T*/) => string;
 
   getComponent?: (ctx: TypeContext<any /*T*/>) => React.ReactElement<any>;
@@ -48,45 +48,47 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
   }
 
   static defaultIsCreable(type: TypeReference, customComponent: boolean) {
-    return type.isEmbedded ? Navigator.isCreable(type.name, customComponent, false) :
+    return type.isEmbedded ? Navigator.isCreable(type.name, { customComponent, isEmbedded: type.isEmbedded }) :
       type.name == IsByAll ? false :
-        getTypeInfos(type).some(ti => Navigator.isCreable(ti, customComponent, false));
+        tryGetTypeInfos(type).some(ti => ti && Navigator.isCreable(ti, { customComponent }));
   }
 
   static defaultIsViewable(type: TypeReference, customComponent: boolean) {
-    return type.isEmbedded ? Navigator.isViewable(type.name, customComponent) :
+    return type.isEmbedded ? Navigator.isViewable(type.name, { customComponent, isEmbedded: type.isEmbedded }) :
       type.name == IsByAll ? true :
-        getTypeInfos(type).some(ti => Navigator.isViewable(ti, customComponent));
+        tryGetTypeInfos(type).some(ti => ti && Navigator.isViewable(ti, { customComponent }));
   }
 
   static defaultIsFindable(type: TypeReference) {
     return type.isEmbedded ? false :
       type.name == IsByAll ? true :
-        getTypeInfos(type).some(ti => Navigator.isFindable(ti));
+        tryGetTypeInfos(type).some(ti => ti && Navigator.isFindable(ti));
   }
 
   static propEquals(prevProps: EntityBaseProps, nextProps: EntityBaseProps): boolean {
     if (
       nextProps.getComponent || prevProps.getComponent ||
-      nextProps.extraButtons || prevProps.extraButtons)
+      nextProps.extraButtonsAfter || prevProps.extraButtonsAfter ||
+      nextProps.extraButtonsBefore || prevProps.extraButtonsBefore)
       return false;
 
     return LineBaseController.propEquals(prevProps, nextProps);
   }
 
   getDefaultProps(state: P) {
+    if (state.type) {
+      const type = state.type;
 
-    const type = state.type!;
+      const customComponent = Boolean(state.getComponent || state.getViewPromise);
 
-    const customComponent = Boolean(state.getComponent || state.getViewPromise);
+      state.create = EntityBaseController.defaultIsCreable(type, customComponent);
+      state.view = EntityBaseController.defaultIsViewable(type, customComponent);
+      state.find = EntityBaseController.defaultIsFindable(type);
+      state.findOptions = Navigator.defaultFindOptions(type);
 
-    state.create = EntityBaseController.defaultIsCreable(type, customComponent);
-    state.view = EntityBaseController.defaultIsViewable(type, customComponent);
-    state.find = EntityBaseController.defaultIsFindable(type);
-    state.findOptions = Navigator.defaultFindOptions(type);
-
-    state.viewOnCreate = true;
-    state.remove = true;
+      state.viewOnCreate = true;
+      state.remove = true;
+    }
   }
 
   convert(entityOrLite: ModifiableEntity | Lite<Entity>): Promise<ModifiableEntity | Lite<Entity>> {
@@ -123,7 +125,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
   }
 
   doView(entity: ModifiableEntity | Lite<Entity>): Promise<ModifiableEntity | undefined> | undefined {
-    const pr = this.props.ctx.propertyRoute;
+    const pr = this.props.ctx.propertyRoute!;
     return this.props.onView ?
       this.props.onView(entity, pr) :
       this.defaultView(entity, pr);
@@ -133,7 +135,8 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
   defaultView(value: ModifiableEntity | Lite<Entity>, propertyRoute: PropertyRoute): Promise<ModifiableEntity | undefined> {
     return Navigator.view(value, {
       propertyRoute: propertyRoute,
-      getViewPromise: this.getGetViewPromise(value)
+      getViewPromise: this.getGetViewPromise(value),
+      allowExchangeEntity: false,
     });
   }
 
@@ -203,7 +206,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     if (t.name == IsByAll)
       return Finder.find(TypeEntity, { title: SelectorMessage.PleaseSelectAType.niceToString() }).then(t => t?.toStr /*CleanName*/);
 
-    const tis = getTypeInfos(t).filter(ti => predicate(ti));
+    const tis = tryGetTypeInfos(t).notNull().filter(ti => predicate(ti));
 
     return SelectorModal.chooseType(tis)
       .then(ti => ti ? ti.name : undefined);
@@ -211,7 +214,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
 
   defaultCreate(pr: PropertyRoute): Promise<ModifiableEntity | Lite<Entity> | undefined> {
 
-    return this.chooseType(t => this.props.create /*Hack?*/ || Navigator.isCreable(t, !!this.props.getComponent || !!this.props.getViewPromise, false))
+    return this.chooseType(t => this.props.create /*Hack?*/ || Navigator.isCreable(t, { customComponent: !!this.props.getComponent || !!this.props.getViewPromise, isEmbedded: pr.member!.type.isEmbedded }))
       .then(typeName => {
         if (!typeName)
           return Promise.resolve(undefined);
@@ -227,7 +230,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
 
     event.preventDefault();
 
-    var pr = this.props.ctx.propertyRoute;
+    var pr = this.props.ctx.propertyRoute!;
     const promise = this.props.onCreate ?
       this.props.onCreate(pr) : this.defaultCreate(pr);
 

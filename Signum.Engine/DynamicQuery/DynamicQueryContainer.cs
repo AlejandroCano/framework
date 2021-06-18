@@ -7,6 +7,7 @@ using Signum.Entities.DynamicQuery;
 using Signum.Entities;
 using System.Threading;
 using System.Threading.Tasks;
+using Signum.Engine.Maps;
 
 namespace Signum.Engine.DynamicQuery
 {
@@ -16,16 +17,19 @@ namespace Signum.Engine.DynamicQuery
 
         public void Register<T>(object queryName, Func<DynamicQueryCore<T>> lazyQueryCore, Implementations? entityImplementations = null)
         {
-            queries[queryName] = new DynamicQueryBucket(queryName, lazyQueryCore, entityImplementations ?? DefaultImplementations(typeof(T), queryName));
+            Register(queryName, new DynamicQueryBucket(queryName, lazyQueryCore, entityImplementations ?? DefaultImplementations(typeof(T), queryName)));
         }
 
         public void Register<T>(object queryName, Func<IQueryable<T>> lazyQuery, Implementations? entityImplementations = null)
         {
-            queries[queryName] = new DynamicQueryBucket(queryName, () => DynamicQueryCore.Auto(lazyQuery()), entityImplementations ?? DefaultImplementations(typeof(T), queryName));
+            Register(queryName, new DynamicQueryBucket(queryName, () => DynamicQueryCore.Auto(lazyQuery()), entityImplementations ?? DefaultImplementations(typeof(T), queryName)));
         }
 
         public void Register(object queryName, DynamicQueryBucket bucket)
         {
+            if (Schema.Current.IsCompleted)
+                throw new InvalidOperationException("Schema already completed");
+
             queries[queryName] = bucket;
         }
 
@@ -112,7 +116,7 @@ namespace Signum.Engine.DynamicQuery
             ExecuteUniqueEntity,
             QueryDescription,
             GetEntities,
-            GetDQueryable
+            GetDQueryable,
         }
 
         public ResultTable ExecuteQuery(QueryRequest request)
@@ -156,9 +160,14 @@ namespace Signum.Engine.DynamicQuery
             return Execute(ExecuteType.QueryDescription, queryName, null, dqb => dqb.GetDescription());
         }
 
-        public IQueryable<Lite<Entity>> GetEntities(QueryEntitiesRequest request)
+        public IQueryable<Lite<Entity>> GetEntitiesLite(QueryEntitiesRequest request)
         {
-            return Execute(ExecuteType.GetEntities, request.QueryName, null, dqb => dqb.Core.Value.GetEntities(request));
+            return Execute(ExecuteType.GetEntities, request.QueryName, null, dqb => dqb.Core.Value.GetEntitiesLite(request));
+        }
+
+        public IQueryable<Entity> GetEntitiesFull(QueryEntitiesRequest request)
+        {
+            return Execute(ExecuteType.GetEntities, request.QueryName, null, dqb => dqb.Core.Value.GetEntitiesFull(request));
         }
 
         public DQueryable<object> GetDQueryable(DQueryableRequest request)
@@ -216,14 +225,14 @@ namespace Signum.Engine.DynamicQuery
         {
             return Task.WhenAll<object?>(requests.Select<BaseQueryRequest, Task<object?>>(r =>
             {
-                if (r is QueryValueRequest)
-                    return ExecuteQueryValueAsync((QueryValueRequest)r, token);
+                if (r is QueryValueRequest qvr)
+                    return ExecuteQueryValueAsync(qvr, token);
 
-                if (r is QueryRequest)
-                    return ExecuteQueryAsync((QueryRequest)r, token).ContinueWith<object?>(a => a.Result);
+                if (r is QueryRequest qr)
+                    return ExecuteQueryAsync(qr, token).ContinueWith<object?>(a => a.Result);
 
-                if (r is UniqueEntityRequest)
-                    return ExecuteUniqueEntityAsync((UniqueEntityRequest)r, token).ContinueWith(a => (object?)a.Result);
+                if (r is UniqueEntityRequest uer)
+                    return ExecuteUniqueEntityAsync(uer, token).ContinueWith(a => (object?)a.Result);
 
                 throw new InvalidOperationException("Unexpected QueryRequest type");
             }));

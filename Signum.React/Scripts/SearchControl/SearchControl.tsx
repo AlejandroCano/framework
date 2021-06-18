@@ -2,15 +2,16 @@ import * as React from 'react'
 import * as Finder from '../Finder'
 import { CellFormatter, EntityFormatter } from '../Finder'
 import { ResultTable, ResultRow, FindOptions, FindOptionsParsed, FilterOptionParsed, FilterOption, QueryDescription } from '../FindOptions'
-import { Lite, Entity } from '../Signum.Entities'
-import { getTypeInfos, getQueryKey } from '../Reflection'
+import { Lite, Entity, ModifiableEntity, EntityPack } from '../Signum.Entities'
+import { tryGetTypeInfos, getQueryKey, getTypeInfos } from '../Reflection'
 import * as Navigator from '../Navigator'
 import SearchControlLoaded, { ShowBarExtensionOption } from './SearchControlLoaded'
 import { ErrorBoundary } from '../Components';
-import { MaxHeightProperty } from 'csstype';
+import { Property } from 'csstype';
 import "./Search.css"
 import { ButtonBarElement, StyleContext } from '../TypeContext';
 import { useForceUpdate, usePrevious, useStateWithPromise } from '../Hooks'
+import { RefreshMode } from '../Signum.Entities.DynamicQuery';
 
 export interface SimpleFilterBuilderProps {
   findOptions: FindOptions;
@@ -23,7 +24,7 @@ export interface SearchControlProps {
   entityFormatter?: EntityFormatter;
   extraButtons?: (searchControl: SearchControlLoaded) => (ButtonBarElement | null | undefined | false)[];
   getViewPromise?: (e: any /*Entity*/) => undefined | string | Navigator.ViewPromise<any /*Entity*/>;
-  maxResultsHeight?: MaxHeightProperty<string | number> | any;
+  maxResultsHeight?: Property.MaxHeight<string | number> | any;
   tag?: string | {};
   searchOnLoad?: boolean;
   allowSelection?: boolean
@@ -43,12 +44,13 @@ export interface SearchControlProps {
   allowChangeColumns?: boolean;
   allowChangeOrder?: boolean;
   create?: boolean;
-  navigate?: boolean | "InPlace";
+  view?: boolean | "InPlace";
   largeToolbarButtons?: boolean;
-  avoidAutoRefresh?: boolean;
+  defaultRefreshMode?: RefreshMode;
   avoidChangeUrl?: boolean;
   throwIfNotFindable?: boolean;
-  refreshKey?: string | number;
+  refreshKey?: any;
+  extraOptions?: any;
   enableAutoFocus?: boolean;
   simpleFilterBuilder?: (sfbc: Finder.SimpleFilterBuilderContext) => React.ReactElement<any> | undefined;
   onNavigated?: (lite: Lite<Entity>) => void;
@@ -58,7 +60,9 @@ export interface SearchControlProps {
   onHeighChanged?: () => void;
   onSearch?: (fo: FindOptionsParsed, dataChange: boolean) => void;
   onResult?: (table: ResultTable, dataChange: boolean) => void;
-  onCreate?: () => Promise<void | boolean>;
+  //Return "no_change" to prevent refresh. Navigator.view won't be called by search control, but returning an entity allows to return it immediatly in a SearchModal in find mode.  
+  onCreate?: () => Promise<undefined | EntityPack<any> | ModifiableEntity | "no_change">;
+  onCreateFinished?: (entity: EntityPack<Entity> | ModifiableEntity | Lite<Entity> | undefined) => void;
   styleContext?: StyleContext;
 }
 
@@ -76,8 +80,8 @@ function is_touch_device(): boolean {
 export interface SearchControlHandler {
   findOptions: FindOptions;
   state?: SearchControlState;
-  doSearch(): void;
-  doSearchPage1(): void;
+  doSearch(opts: { dataChanged?: boolean, force?: boolean }): void;
+  doSearchPage1(force?: boolean): void;
   searchControlLoaded: SearchControlLoaded | null;
 }
 
@@ -99,8 +103,8 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
       return searchControlLoaded.current;
     },
     state: state,
-    doSearch: () => searchControlLoaded.current && searchControlLoaded.current.doSearch(),
-    doSearchPage1: () => searchControlLoaded.current && searchControlLoaded.current.doSearchPage1(),
+    doSearch: opts => searchControlLoaded.current && searchControlLoaded.current.doSearch(opts),
+    doSearchPage1: force => searchControlLoaded.current && searchControlLoaded.current.doSearchPage1(force),
   };
   React.useImperativeHandle(ref, () => handler, [p.findOptions, state, searchControlLoaded.current]);
 
@@ -185,25 +189,27 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
         showFooter={p.showFooter != null ? p.showFooter : true}
         allowChangeColumns={p.allowChangeColumns != null ? p.allowChangeColumns : true}
         allowChangeOrder={p.allowChangeOrder != null ? p.allowChangeOrder : true}
-        create={p.create != null ? p.create : tis.some(ti => Navigator.isCreable(ti, false, true))}
-        navigate={p.navigate != null ? p.navigate : tis.some(ti => Navigator.isNavigable(ti, undefined, true))}
+        create={p.create != null ? p.create : tis.some(ti => Navigator.isCreable(ti, { isSearch: true }))}
+        view={p.view != null ? p.view : tis.some(ti => Navigator.isViewable(ti, { isSearch: true }))}
 
 
         allowSelection={p.allowSelection != null ? p.allowSelection : qs && qs.allowSelection != null ? qs!.allowSelection : true}
-        showContextMenu={p.showContextMenu || qs?.showContextMenu || ((fo) => fo.groupResults ? "Basic" : true)}
+        showContextMenu={p.showContextMenu ?? qs?.showContextMenu ?? ((fo) => fo.groupResults ? "Basic" : true)}
         hideButtonBar={p.hideButtonBar != null ? p.hideButtonBar : false}
         hideFullScreenButton={p.hideFullScreenButton != null ? p.hideFullScreenButton : false}
         showBarExtension={p.showBarExtension != null ? p.showBarExtension : true}
         showBarExtensionOption={p.showBarExtensionOption}
         largeToolbarButtons={p.largeToolbarButtons != null ? p.largeToolbarButtons : false}
-        avoidAutoRefresh={p.avoidAutoRefresh != null ? p.avoidAutoRefresh : false}
+        defaultRefreshMode={p.defaultRefreshMode}
         avoidChangeUrl={p.avoidChangeUrl != null ? p.avoidChangeUrl : true}
         refreshKey={p.refreshKey}
+        extraOptions={p.extraOptions}
 
         enableAutoFocus={p.enableAutoFocus == null ? false : p.enableAutoFocus}
         simpleFilterBuilder={p.simpleFilterBuilder}
 
         onCreate={p.onCreate}
+        onCreateFinished={p.onCreateFinished}
         onNavigated={p.onNavigated}
         onSearch={p.onSearch}
         onDoubleClick={p.onDoubleClick}
@@ -218,9 +224,8 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
   );
 });
 
-(SearchControl as any).defaultProps = {
+(SearchControl ).defaultProps = {
   allowSelection: true,
-  avoidFullScreenButton: false,
   maxResultsHeight: "400px",
   defaultIncludeDefaultFilters: false,
 };

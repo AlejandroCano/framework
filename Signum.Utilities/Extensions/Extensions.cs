@@ -244,7 +244,7 @@ namespace Signum.Utilities
         public static T? DefaultToNull<T>(this T value)
             where T : struct
         {
-            return EqualityComparer<T>.Default.Equals(default(T), value) ? (T?)null : value;
+            return EqualityComparer<T>.Default.Equals(default, value) ? (T?)null : value;
         }
 
         public static T? DefaultToNull<T>(this T value, T defaultValue)
@@ -373,6 +373,13 @@ namespace Signum.Utilities
         public static IEnumerable<DateTime> To(this DateTime start, DateTime endNotIncluded)
         {
             for (DateTime i = start; i < endNotIncluded; i = i.AddDays(1))
+                yield return i;
+        }
+
+
+        public static IEnumerable<Date> To(this Date start, Date endNotIncluded)
+        {
+            for (Date i = start; i < endNotIncluded; i = i.AddDays(1))
                 yield return i;
         }
 

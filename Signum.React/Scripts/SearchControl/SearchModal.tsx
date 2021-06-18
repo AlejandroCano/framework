@@ -1,23 +1,27 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { openModal, IModalProps } from '../Modals';
-import { FindOptions, FindMode, ResultRow, ModalFindOptions } from '../FindOptions'
+import { FindOptions, FindMode, ResultRow, ModalFindOptions, FindOptionsParsed } from '../FindOptions'
 import { getQueryNiceName, PseudoType, QueryKey, getTypeInfo } from '../Reflection'
 import SearchControl, { SearchControlProps, SearchControlHandler } from './SearchControl'
 import { AutoFocus } from '../Components/AutoFocus';
-import { SearchMessage } from '../Signum.Entities';
-import { ModalHeaderButtons } from '../Components/ModalHeaderButtons';
+import { Entity, EntityPack, getToString, isEntityPack, isLite, Lite, ModifiableEntity, SearchMessage, toLite } from '../Signum.Entities';
+import { ModalFooterButtons, ModalHeaderButtons } from '../Components/ModalHeaderButtons';
 import { Modal, Dropdown } from 'react-bootstrap';
 import { namespace } from 'd3';
 import { useForceUpdate } from '../Hooks';
+import SearchControlLoaded from './SearchControlLoaded';
+import MessageModal from '../Modals/MessageModal';
 
-interface SearchModalProps extends IModalProps<ResultRow[] | undefined> {
+interface SearchModalProps extends IModalProps<{ rows: ResultRow[], searchControl: SearchControlLoaded } | undefined> {
   findOptions: FindOptions;
   findMode: FindMode;
   isMany: boolean;
   title?: React.ReactNode;
   message?: React.ReactNode;
+  avoidReturnCreate?: boolean;
   searchControlProps?: Partial<SearchControlProps>;
+  onOKClicked?: (sc: SearchControlLoaded) => Promise<boolean>;
 }
 
 function SearchModal(p: SearchModalProps) {
@@ -40,8 +44,17 @@ function SearchModal(p: SearchModalProps) {
   }
 
   function handleOkClicked() {
-    okPressed.current = true;
-    setShow(false);
+    if (!p.onOKClicked) {
+      okPressed.current = true;
+      setShow(false);
+    }
+    else
+      p.onOKClicked(searchControl.current!.searchControlLoaded!).then(result => {
+        if (result) {
+          okPressed.current = true;
+          setShow(false);
+        };
+      }).done();
   }
 
   function handleCancelClicked() {
@@ -50,16 +63,41 @@ function SearchModal(p: SearchModalProps) {
   }
 
   function handleOnExited() {
-    p.onExited!(okPressed.current ? selectedRows.current : undefined);
+    p.onExited!(okPressed.current ? { rows: selectedRows.current, searchControl: searchControl.current!.searchControlLoaded! } : undefined);
   }
 
   function handleDoubleClick(e: React.MouseEvent<any>, row: ResultRow) {
     e.preventDefault();
     selectedRows.current = [row];
-    okPressed.current = true;
-    setShow(false);
+    searchControl.current!.searchControlLoaded!.state.selectedRows!.clear();
+    searchControl.current!.searchControlLoaded!.state.selectedRows!.push(row);
+    handleOkClicked();
   }
 
+  function handleCreateFinished(entity: EntityPack<Entity> | ModifiableEntity | Lite<Entity> | undefined) {
+
+    const scl = searchControl.current!.searchControlLoaded!;
+    if (p.findMode == "Find" && entity != null && !p.avoidReturnCreate && !p.findOptions.groupResults && !p.onOKClicked) {
+      const e = isEntityPack(entity) ? entity.entity : entity;
+      const ti = getTypeInfo(isLite(e) ? e.EntityType : e.Type);
+      MessageModal.show({
+        buttons: "yes_no",
+        style: "success",
+        customIcon: "check-square",
+        title: SearchMessage.ReturnNewEntity.niceToString(),
+        message: SearchMessage.DoYouWantToSelectTheNew01_G.niceToString().forGenderAndNumber(ti.gender).formatHtml(ti.niceName, <strong>{getToString(e)}</strong>)
+      }).then(b => {
+        if (b == "yes") {
+          selectedRows.current = [{ entity: isLite(e) ? e : toLite(e as Entity), columns: [] }];
+          okPressed.current = true;
+          setShow(false);
+        } else
+          scl.dataChanged();
+      }).done();
+
+    } else 
+      scl.dataChanged();
+  }
 
   function onResize() {
     var sc = searchControl.current;
@@ -73,73 +111,78 @@ function SearchModal(p: SearchModalProps) {
 
   const okEnabled = p.isMany ? selectedRows.current.length > 0 : selectedRows.current.length == 1;
 
-    return (
+  return (
     <Modal size="lg" show={show} onExited={handleOnExited} onHide={handleCancelClicked} className="sf-search-modal">
-        <ModalHeaderButtons
-        onClose={p.findMode == "Explore" ? handleCancelClicked : undefined}
-        onOk={p.findMode == "Find" ? handleOkClicked : undefined}
-        onCancel={p.findMode == "Find" ? handleCancelClicked : undefined}
-          okDisabled={!okEnabled}>
-          <span className="sf-entity-title">
+      <ModalHeaderButtons onClose={p.findMode == "Explore" ? handleCancelClicked : undefined}>
+        <span className="sf-entity-title">
           {p.title}
           &nbsp;
           </span>
         <a className="sf-popup-fullscreen pointer" onMouseUp={(e) => searchControl.current && searchControl.current.searchControlLoaded!.handleFullScreenClick(e)}>
-            <FontAwesomeIcon icon="external-link-alt" />
-          </a>
+          <FontAwesomeIcon icon="external-link-alt" />
+        </a>
         {p.message && <>
-            <br />
+          <br />
           <small className="sf-type-nice-name text-muted"> {p.message}</small>
-          </>
-          }
-        </ModalHeaderButtons>
-        <div className="modal-body">
-          <SearchControl
+        </>
+        }
+      </ModalHeaderButtons>
+      <div className="modal-body">
+        <SearchControl
           ref={searchControl}
-            hideFullScreenButton={true}
-            throwIfNotFindable={true}
+          hideFullScreenButton={true}
+          throwIfNotFindable={true}
           findOptions={p.findOptions}
-			defaultIncludeDefaultFilters={true}
+          defaultIncludeDefaultFilters={true}
           onSelectionChanged={handleSelectionChanged}
           showGroupButton={p.findMode == "Explore"}
-            largeToolbarButtons={true}
-            maxResultsHeight={"none"}
-            enableAutoFocus={true}
+          largeToolbarButtons={true}
+          maxResultsHeight={"none"}
+          enableAutoFocus={true}
+          onCreateFinished={handleCreateFinished}
           onHeighChanged={onResize}
           onDoubleClick={p.findMode == "Find" ? handleDoubleClick : undefined}
           {...p.searchControlProps}
-          />
-        </div>
-      </Modal>
-    );
-  }
+        />
+      </div>
+      {p.findMode == "Find" &&
+        <ModalFooterButtons
+          onOk={handleOkClicked}
+          onCancel={handleCancelClicked}
+          okDisabled={!okEnabled} />
+      }
+    </Modal>
+  );
+}
 
 
 namespace SearchModal {
   export let marginVertical = 300;
   export let minHeight = 600;
 
-  export function open(findOptions: FindOptions, modalOptions?: ModalFindOptions): Promise<ResultRow | undefined> {
+  export function open(findOptions: FindOptions, modalOptions?: ModalFindOptions): Promise<{ row: ResultRow, searchControl: SearchControlLoaded } | undefined> {
 
-    return openModal<ResultRow[]>(<SearchModal
+    return openModal<{ rows: ResultRow[], searchControl: SearchControlLoaded } | undefined>(<SearchModal
       findOptions={findOptions}
       findMode={"Find"}
       isMany={false}
       title={modalOptions?.title ?? getQueryNiceName(findOptions.queryName)}
       message={modalOptions?.message ?? defaultSelectMessage(findOptions.queryName, false)}
       searchControlProps={modalOptions?.searchControlProps}
+      onOKClicked={modalOptions?.onOKClicked}
     />)
-      .then(a => a ? a[0] : undefined);
+      .then(a => a && { row: a.rows[0], searchControl: a.searchControl });
   }
 
-  export function openMany(findOptions: FindOptions, modalOptions?: ModalFindOptions): Promise<ResultRow[] | undefined> {
+  export function openMany(findOptions: FindOptions, modalOptions?: ModalFindOptions): Promise<{ rows: ResultRow[], searchControl: SearchControlLoaded } | undefined> {
 
-    return openModal<ResultRow[]>(<SearchModal findOptions={findOptions}
+    return openModal<{ rows: ResultRow[], searchControl: SearchControlLoaded } | undefined>(<SearchModal findOptions={findOptions}
       findMode={"Find"}
       isMany={true}
       title={modalOptions?.title ?? getQueryNiceName(findOptions.queryName)}
       message={modalOptions?.message ?? defaultSelectMessage(findOptions.queryName, true)}
       searchControlProps={modalOptions?.searchControlProps}
+      onOKClicked={modalOptions?.onOKClicked}
     />);
   }
 

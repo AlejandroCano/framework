@@ -17,7 +17,7 @@ namespace Signum.Utilities
     public static class Csv
     {
         // Default changed since Excel exports not to UTF8 and https://stackoverflow.com/questions/49215791/vs-code-c-sharp-system-notsupportedexception-no-data-is-available-for-encodin
-        public static Encoding DefaultEncoding => Encoding.UTF8; 
+        public static Encoding DefaultEncoding => Encoding.UTF8;
 
         public static CultureInfo? DefaultCulture = null;
 
@@ -46,7 +46,7 @@ namespace Signum.Utilities
             var defEncoding = encoding ?? DefaultEncoding;
             var defCulture = culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
 
-            string separator = defCulture.TextInfo.ListSeparator;
+            string separator = GetListSeparator(defCulture).ToString();
 
             if (typeof(IList).IsAssignableFrom(typeof(T)))
             {
@@ -125,7 +125,7 @@ namespace Signum.Utilities
             if (p == null)
                 return null;
 
-            string separator = culture.TextInfo.ListSeparator;
+            char separator = GetListSeparator(culture);
 
             if (p.Contains(separator) || p.Contains("\"") || p.Contains("\r") || p.Contains("\n"))
             {
@@ -197,7 +197,7 @@ namespace Signum.Utilities
                         sr.ReadLine();
 
                     var line = skipLines;
-                    while(true)
+                    while (true)
                     {
                         string? csvLine = sr.ReadLine();
 
@@ -214,7 +214,7 @@ namespace Signum.Utilities
                                 t = ReadObject<T>(m, members, parsers);
                             }
                         }
-                        catch(Exception e)
+                        catch (Exception e)
                         {
                             e.Data["row"] = line;
 
@@ -246,7 +246,10 @@ namespace Signum.Utilities
                             T? t = null;
                             try
                             {
-                                t = ReadObject<T>(m, members, parsers);
+                                if (options?.Constructor != null)
+                                    t = options.Constructor(m);
+                                else
+                                    t = ReadObject<T>(m, members, parsers);
                             }
                             catch (Exception e)
                             {
@@ -347,23 +350,35 @@ namespace Signum.Utilities
             return t;
         }
 
-     
+
 
         static ConcurrentDictionary<char, Regex> regexCache = new ConcurrentDictionary<char, Regex>();
         const string BaseRegex = @"^((?<val>'(?:[^']+|'')*'|[^;\r\n]*))?((?!($|\r\n));(?<val>'(?:[^']+|'')*'|[^;\r\n]*))*($|\r\n)";
         static Regex GetRegex(CultureInfo culture, TimeSpan timeout)
         {
-            char separator = culture.TextInfo.ListSeparator.SingleEx();
+            char separator = GetListSeparator(culture);
 
             return regexCache.GetOrAdd(separator, s =>
                 new Regex(BaseRegex.Replace('\'', '"').Replace(';', s), RegexOptions.Multiline | RegexOptions.ExplicitCapture, timeout));
+        }
+
+        private static char GetListSeparator(CultureInfo culture)
+        {
+            //Temp Hack https://github.com/dotnet/runtime/issues/43795
+            if (culture.NumberFormat.NumberDecimalSeparator == ",")
+                return ';';
+
+
+            return ',';
+
+            //return culture.TextInfo.ListSeparator.SingleEx();
         }
 
         static class CsvMemberCache<T>
         {
             static CsvMemberCache()
             {
-                var memberEntries = MemberEntryFactory.GenerateList<T>(MemberOptions.Fields | MemberOptions.Properties | MemberOptions.Typed | MemberOptions.Setters | MemberOptions.Getter);
+                var memberEntries = MemberEntryFactory.GenerateList<T>(MemberOptions.Fields | MemberOptions.Properties | MemberOptions.Setters | MemberOptions.Getter);
                 Members = memberEntries.Select((me, i) =>
                 {
                     var type = me.MemberInfo.ReturningType();
@@ -400,7 +415,7 @@ namespace Signum.Utilities
             Type? baseType = Nullable.GetUnderlyingType(type);
             if (baseType != null)
             {
-                if (!s.HasText()) 
+                if (!s.HasText())
                     return null;
 
                 type = baseType;
@@ -415,14 +430,18 @@ namespace Signum.Utilities
                 else
                     return DateTime.ParseExact(s, format, culture);
 
+            if (type == typeof(Guid))
+                return Guid.Parse(s);
+
             return Convert.ChangeType(s, type, culture);
         }
     }
 
-    public class CsvReadOptions<T> where T: class
+    public class CsvReadOptions<T> where T : class
     {
         public Func<CsvMemberInfo<T>, CultureInfo, Func<string, object?>?>? ParserFactory;
         public bool AsumeSingleLine = false;
+        public Func<Match, T>? Constructor;
         public Func<Exception, Match?, bool>? SkipError;
         public TimeSpan RegexTimeout = Regex.InfiniteMatchTimeout;
     }

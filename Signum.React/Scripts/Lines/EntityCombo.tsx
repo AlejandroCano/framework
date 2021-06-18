@@ -10,6 +10,7 @@ import { FormControlReadonly } from './FormControlReadonly'
 import { classes } from '../Globals';
 import { useController } from './LineBase'
 import { useMounted } from '../Hooks'
+import { DropdownList } from 'react-widgets'
 
 
 export interface EntityComboProps extends EntityBaseProps {
@@ -19,6 +20,9 @@ export interface EntityComboProps extends EntityBaseProps {
   refreshKey?: string;
   initiallyFocused?: boolean;
   selectHtmlAttributes?: React.AllHTMLAttributes<any>;
+  onRenderItem?: (lite: Lite<Entity> | undefined) => React.ReactChild;
+  delayLoadData?: boolean;
+  toStringFromData?: boolean;
 }
 
 export class EntityComboController extends EntityBaseController<EntityComboProps> {
@@ -78,11 +82,12 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
 
   const buttons = (
     <span className="input-group-append">
+      {c.props.extraButtonsBefore && c.props.extraButtonsBefore(c)}
       {!hasValue && c.renderCreateButton(true)}
       {!hasValue && c.renderFindButton(true)}
       {hasValue && c.renderViewButton(true, c.props.ctx.value!)}
       {hasValue && c.renderRemoveButton(true, c.props.ctx.value!)}
-      {c.props.extraButtons && c.props.extraButtons(c)}
+      {c.props.extraButtonsAfter && c.props.extraButtonsAfter(c)}
     </span>
   );
 
@@ -104,8 +109,11 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
             onDataLoaded={p.labelTextWithData == null ? undefined : () => c.forceUpdate()}
             mandatoryClass={c.mandatoryClass}
             refreshKey={p.refreshKey}
+            delayLoadData={p.delayLoadData}
+            toStringFromData={p.toStringFromData}
             selectHtmlAttributes={p.selectHtmlAttributes}
             liteToString={p.liteToString}
+            onRenderItem={p.onRenderItem}
           />
           {EntityBaseController.hasChildrens(buttons) ? buttons : undefined}
         </div>
@@ -124,9 +132,23 @@ export interface EntityComboSelectProps {
   onDataLoaded?: (data: Lite<Entity>[] | undefined) => void;
   refreshKey?: string;
   selectHtmlAttributes?: React.AllHTMLAttributes<any>;
+  onRenderItem?: (lite: Lite<Entity> | undefined) => React.ReactNode;
   liteToString?: (e: Entity) => string;
+  delayLoadData?: boolean;
+  toStringFromData?: boolean;
 }
 
+
+const __normalized: Lite<Entity>[] = [];
+export function normalizeEmptyArray(data: Lite<Entity>[] | undefined) {
+  if (data == undefined)
+    return undefined;
+
+  if (data.length == 0)
+    return __normalized;
+
+  return data;
+}
 
 export interface  EntityComboHandle {
   getSelect(): HTMLSelectElement | null;
@@ -137,6 +159,9 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
 
   const [data, _setData] = React.useState<Lite<Entity>[] | undefined>(p.data);
   const requestStarted = React.useRef(false);
+
+  const [loadData, setLoadData] = React.useState<boolean>(!p.delayLoadData);
+
   const selectRef = React.useRef<HTMLSelectElement>(null);
   const mounted = useMounted();
 
@@ -158,13 +183,13 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
       if (requestStarted.current)
         console.warn(`The 'data' was set too late. Consider using [] as default value to avoid automatic query. EntityCombo: ${p.type!.name}`);
       setData(p.data);
-    } else {
+    } else if (loadData) {
       requestStarted.current = true;
       const fo = p.findOptions;
       if (fo) {
         Finder.expandParentColumn(fo);
         var limit = fo?.pagination?.elementsPerPage ?? 999;
-        Finder.fetchEntitiesWithFilters(fo.queryName, fo.filterOptions ?? [], fo.orderOptions ?? [], limit)
+        Finder.fetchEntitiesLiteWithFilters(fo.queryName, fo.filterOptions ?? [], fo.orderOptions ?? [], limit)
           .then(data => setData(fo.orderOptions && fo.orderOptions.length ? data : data.orderBy(a => a.toStr)))
           .done();
       }
@@ -173,7 +198,7 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
           .then(data => setData(data.orderBy(a => a)))
           .done();
     }
-  }, [p.data, p.type.name, p.refreshKey, p.findOptions && Finder.findOptionsPath(p.findOptions)]);
+  }, [normalizeEmptyArray(p.data), p.type.name, p.refreshKey, loadData, p.findOptions && Finder.findOptionsPath(p.findOptions)]);
 
   const lite = getLite();
 
@@ -182,12 +207,25 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
   if (ctx.readOnly)
     return <FormControlReadonly ctx={ctx} htmlAttributes={p.selectHtmlAttributes}>{ctx.value && getToString(lite, p.liteToString)}</FormControlReadonly>;
 
-  return (
-    <select className={classes(ctx.formControlClass, p.mandatoryClass)} onChange={handleOnChange} value={lite ? liteKey(lite) : ""}
-      disabled={ctx.readOnly} {...p.selectHtmlAttributes} ref={selectRef} >
-      {renderOptions()}
-    </select>
-  );
+  if (p.onRenderItem) {
+    return (
+      <DropdownList className={classes(ctx.formControlClass, p.mandatoryClass)} data={getOptionLites()} onChange={lite => p.onChange(lite ?? null)} value={lite}
+        filter="contains"
+        dataKey="value"
+        textField="label"
+        renderValue={a => p.onRenderItem!(a.item)}
+        renderListItem={a => p.onRenderItem!(a.item)}
+      />
+    );
+  } else {
+    return (
+      <select className={classes(ctx.formControlClass, p.mandatoryClass)} onChange={handleOnChange} value={lite ? liteKey(lite) : ""} onClick={() => setLoadData(true)}
+        disabled={ctx.readOnly} {...p.selectHtmlAttributes} ref={selectRef} >
+        {getOptionLites().map((e, i) => <option key={i} value={e ? liteKey(e) : ""}>{e ? getToString(e, p.liteToString) : " - "}</option>)}
+      </select>
+    );
+
+  }
 
 
   function handleOnChange(event: React.ChangeEvent<HTMLSelectElement>) {
@@ -216,26 +254,23 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
     return v as Lite<Entity>;
   }
 
-  function renderOptions() {
-
-    if (data == undefined)
-      return undefined;
+  function getOptionLites() {
 
     const lite = getLite();
 
-    const elements = [undefined, ...data];
+    const elements = [undefined, ...data ?? []];
 
     if (lite) {
       var index = elements.findIndex(a => is(a, lite));
       if (index == -1)
         elements.insertAt(1, lite);
-      else
-        elements[index] = lite;
+      else {
+        if (!p.toStringFromData)
+          elements[index] = lite;
+      }
     }
 
-    return (
-      elements.map((e, i) => <option key={i} value={e ? liteKey(e) : ""}>{e ? getToString(e, p.liteToString) : " - "}</option>)
-    );
+    return elements;
   }
 });
 

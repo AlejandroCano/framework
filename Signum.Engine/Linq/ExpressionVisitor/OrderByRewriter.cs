@@ -77,7 +77,20 @@ namespace Signum.Engine.Linq
             if (gatheredKeys != null && (select.IsDistinct || select.GroupBy.HasItems() || select.IsAllAggregates))
                 savedKeys = gatheredKeys.ToList();
 
-            select = (SelectExpression)base.VisitSelect(select);
+            if ((AggregateFinder.GetAggregates(select.Columns)?.Any(a => a.AggregateFunction.OrderMatters()) ?? false) && select.From is SelectExpression from)
+            {
+                var oldOuterMostSelect = outerMostSelect;
+                outerMostSelect = from;
+
+                select = (SelectExpression)base.VisitSelect(select);
+
+                outerMostSelect = oldOuterMostSelect;
+            }
+            else
+            {
+                select = (SelectExpression)base.VisitSelect(select);
+            }
+
 
             if (savedKeys != null)
                 gatheredKeys = savedKeys;
@@ -213,16 +226,16 @@ namespace Signum.Engine.Linq
             return col1 == col2;
         }
 
-        private bool IsCountSumOrAvg(SelectExpression select)
+        private static bool IsCountSumOrAvg(SelectExpression select)
         {
-            ColumnDeclaration col = select.Columns.Only();
+            ColumnDeclaration? col = select.Columns.Only();
             if (col == null)
                 return false;
 
             Expression exp = col.Expression;
 
-            if (exp is IsNullExpression)
-                exp = ((IsNullExpression)exp).Expression;
+            if (exp is IsNullExpression isNull)
+                exp = isNull.Expression;
 
             if (exp.NodeType == ExpressionType.Coalesce)
             {
@@ -231,10 +244,11 @@ namespace Signum.Engine.Linq
                     exp = ((BinaryExpression)exp).Left;
             }
 
-            if (!(exp is AggregateExpression aggExp))
+            if (exp is not AggregateExpression aggExp)
                 return false;
 
             return aggExp.AggregateFunction == AggregateSqlFunction.Count ||
+                aggExp.AggregateFunction == AggregateSqlFunction.CountDistinct ||
                 aggExp.AggregateFunction == AggregateSqlFunction.Sum ||
                 aggExp.AggregateFunction == AggregateSqlFunction.Average ||
                 aggExp.AggregateFunction == AggregateSqlFunction.StdDev ||
@@ -252,7 +266,7 @@ namespace Signum.Engine.Linq
 
             this.PrependOrderings(leftOrders);
 
-            Expression condition = this.Visit(join.Condition);
+            Expression? condition = this.Visit(join.Condition);
 
             if (left != join.Left || right != join.Right || condition != join.Condition)
             {

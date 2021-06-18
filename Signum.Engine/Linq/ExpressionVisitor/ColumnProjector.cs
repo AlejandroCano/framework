@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using Signum.Utilities;
 using Signum.Utilities.ExpressionTrees;
@@ -56,16 +57,16 @@ namespace Signum.Engine.Linq
             return new ProjectedColumns(e, cp.generator.Columns.NotNull().ToReadOnly());
         }
         
-        public override Expression Visit(Expression expression)
+        [return: NotNullIfNotNull("expression")]
+        public override Expression? Visit(Expression? expression)
         {
-            if (this.candidates.Contains(expression))
+            if (this.candidates.Contains(expression!))
             {
-                if (expression is ColumnExpression)
+                if (expression is ColumnExpression column)
                 {
                     if (!projectTrivialColumns)
                         return expression;
 
-                    ColumnExpression column = (ColumnExpression)expression;
                     if (this.map.TryGetValue(column, out var mapped))
                     {
                         return mapped;
@@ -77,7 +78,7 @@ namespace Signum.Engine.Linq
                 }
                 else
                 {
-                    if (expression.Type.UnNullify().IsEnum)
+                    if (expression!.Type.UnNullify().IsEnum)
                     {
                         var convert = expression.TryConvert(expression.Type.IsNullable() ? typeof(int?) : typeof(int));
 
@@ -114,13 +115,13 @@ namespace Signum.Engine.Linq
         {
             ColumnUnionProjector cp = new ColumnUnionProjector(candidates, request, implementation);
 
-            return cp.Visit(projector);
+            return cp.Visit(projector)!;
         }
 
 
-        public override Expression Visit(Expression expression)
+        public override Expression? Visit(Expression? expression)
         {
-            if (this.candidates.Contains(expression))
+            if (this.candidates.Contains(expression!))
             {
                 if (expression is ColumnExpression column)
                 {
@@ -129,13 +130,13 @@ namespace Signum.Engine.Linq
                         return mapped;
                     }
 
-                    mapped = request.AddIndependentColumn(column.Type, column.Name, implementation, column);
+                    mapped = request.AddIndependentColumn(column.Type, column.Name!, implementation, column);
                     this.map[column] = mapped;
                     return mapped;
                 }
                 else
                 {
-                    if (expression.Type.UnNullify().IsEnum)
+                    if (expression!.Type.UnNullify().IsEnum)
                     {
                         var convert = expression.TryConvert(expression.Type.IsNullable() ? typeof(int?) : typeof(int));
 
@@ -188,7 +189,7 @@ namespace Signum.Engine.Linq
 
         public ColumnDeclaration MapColumn(ColumnExpression ce)
         {
-            string columnName = GetUniqueColumnName(ce.Name);
+            string columnName = GetUniqueColumnName(ce.Name!);
             var result = new ColumnDeclaration(columnName, ce);
             columns.Add(result.Name, result);
             return result;

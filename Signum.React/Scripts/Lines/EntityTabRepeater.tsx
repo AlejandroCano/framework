@@ -119,17 +119,18 @@ export const EntityTabRepeater = React.forwardRef(function EntityTabRepeater(pro
   function renderButtons() {
     const buttons = (
       <span className="ml-2">
+        {p.extraButtonsBefore && p.extraButtonsBefore(c)}
         {!p.createAsLink && c.renderCreateButton(false, p.createMessage)}
         {c.renderFindButton(false)}
-        {p.extraButtons && p.extraButtons(c)}
+        {p.extraButtonsAfter && p.extraButtonsAfter(c)}
       </span>
     );
 
     return React.Children.count(buttons) ? buttons : undefined;
   }
 
-  function handleSelectTab(eventKey: string) {
-    var num = parseInt(eventKey);
+  function handleSelectTab(eventKey: string | null) {
+    var num = parseInt(eventKey ?? "");
     if (!isNaN(num)) { //Create tab
       c.setSelectedIndex(num);
     }
@@ -146,7 +147,7 @@ export const EntityTabRepeater = React.forwardRef(function EntityTabRepeater(pro
             const drag = c.canMove(mlec.value) && !readOnly ? c.getDragConfig(mlec.index!, "h") : undefined;
 
             return (
-              <Tab eventKey={mlec.index!} key={c.keyGenerator.getKey(mlec.value)}
+              <Tab eventKey={mlec.index!.toString()} key={c.keyGenerator.getKey(mlec.value)}
                 {...EntityListBaseController.entityHtmlAttributes(mlec.value)}
                 className="sf-repeater-element"
                 title={

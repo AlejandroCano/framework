@@ -4,16 +4,16 @@
     "sourceMap": false,
     "module": "esnext",
     "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "jsx": "react",
     "incremental": true,
     "outDir": "./ts_out",
     "composite": true,
     //"noEmit": true,
     "strict": true,
-    "baseUrl": ".",
     "declarationMap": true,
     "lib": [
-      "es2017",
+      "ES2020",
       //"esnext",
       "dom"
     ]

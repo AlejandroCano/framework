@@ -229,7 +229,7 @@ namespace Signum.Engine.CodeGeneration
             }.NotNull().ToString("\r\n") + ";";
         }
 
-        private bool IsSimpleExpression(ExpressionInfo exp, Type type)
+        protected virtual bool IsSimpleExpression(ExpressionInfo exp, Type type)
         {
             return !exp.IsUnique && type == exp.ToType;
         }
@@ -324,13 +324,13 @@ namespace Signum.Engine.CodeGeneration
 
         protected virtual bool ShouldWriteExpression(ExpressionInfo ei)
         {
-            switch (EntityKindCache.GetEntityKind(ei.FromType))
+            return EntityKindCache.GetEntityKind(ei.FromType) switch
             {
-                case EntityKind.Part:
-                case EntityKind.String:
-                case EntityKind.SystemString: return false;
-                default: return true;
-            }
+                EntityKind.Part or 
+                EntityKind.String or 
+                EntityKind.SystemString => false,
+                _ => true,
+            };
         }
 
         protected virtual string WriteExpressionMethod(ExpressionInfo info)
@@ -426,7 +426,7 @@ public static IQueryable<{to}> {Method}(this {from} {f}) => As.Expression(() => 
         {
             var t = CurrentSchema.Settings.TryGetSqlDbTypePair(type.UnNullify());
 
-            return t != null && t.UserDefinedTypeName == null && t.SqlDbType != SqlDbType.Image && t.SqlDbType != SqlDbType.VarBinary;
+            return t != null && t.UserDefinedTypeName == null && (t.DbType.IsNumber() || t.DbType.IsString() || t.DbType.IsDate());
         }
 
         protected virtual string WriteOperations(Type type)
@@ -466,7 +466,7 @@ public static IQueryable<{to}> {Method}(this {from} {f}) => As.Expression(() => 
             }
         }
 
-        private OperationType GetOperationType(IOperationSymbolContainer oper)
+        static OperationType GetOperationType(IOperationSymbolContainer oper)
         {
             string type = oper.GetType().TypeName();
 
@@ -507,7 +507,7 @@ public static IQueryable<{to}> {Method}(this {from} {f}) => As.Expression(() => 
             return sb.ToString();
         }
 
-        private bool ShouldWriteSimpleOperations(IOperationSymbolContainer oper)
+        protected virtual bool ShouldWriteSimpleOperations(IOperationSymbolContainer oper)
         {
             return true;
         }

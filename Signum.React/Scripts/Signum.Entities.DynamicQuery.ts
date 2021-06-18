@@ -43,6 +43,7 @@ export type FilterType =
   "Decimal" |
   "String" |
   "DateTime" |
+  "Time" |
   "Lite" |
   "Embedded" |
   "Boolean" |
@@ -87,6 +88,10 @@ export module QueryTokenMessage {
   export const Hour = new MessageKey("QueryTokenMessage", "Hour");
   export const ListOf0 = new MessageKey("QueryTokenMessage", "ListOf0");
   export const Millisecond = new MessageKey("QueryTokenMessage", "Millisecond");
+  export const TotalDays = new MessageKey("QueryTokenMessage", "TotalDays");
+  export const TotalHours = new MessageKey("QueryTokenMessage", "TotalHours");
+  export const TotalSeconds = new MessageKey("QueryTokenMessage", "TotalSeconds");
+  export const TotalMilliseconds = new MessageKey("QueryTokenMessage", "TotalMilliseconds");
   export const Minute = new MessageKey("QueryTokenMessage", "Minute");
   export const Month = new MessageKey("QueryTokenMessage", "Month");
   export const MonthStart = new MessageKey("QueryTokenMessage", "MonthStart");
@@ -96,6 +101,7 @@ export module QueryTokenMessage {
   export const HourStart = new MessageKey("QueryTokenMessage", "HourStart");
   export const MinuteStart = new MessageKey("QueryTokenMessage", "MinuteStart");
   export const SecondStart = new MessageKey("QueryTokenMessage", "SecondStart");
+  export const TimeOfDay = new MessageKey("QueryTokenMessage", "TimeOfDay");
   export const MoreThanOneColumnNamed0 = new MessageKey("QueryTokenMessage", "MoreThanOneColumnNamed0");
   export const Number = new MessageKey("QueryTokenMessage", "Number");
   export const Of = new MessageKey("QueryTokenMessage", "Of");
@@ -114,6 +120,11 @@ export module QueryTokenMessage {
   export const Not = new MessageKey("QueryTokenMessage", "Not");
   export const Distinct = new MessageKey("QueryTokenMessage", "Distinct");
 }
+
+export const RefreshMode = new EnumType<RefreshMode>("RefreshMode");
+export type RefreshMode =
+  "Auto" |
+  "Manual";
 
 export const RoundingType = new EnumType<RoundingType>("RoundingType");
 export type RoundingType =
@@ -135,7 +146,6 @@ export type UniqueType =
   "FirstOrDefault" |
   "Single" |
   "SingleOrDefault" |
-  "SingleOrMany" |
   "Only";
 
 

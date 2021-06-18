@@ -4,6 +4,7 @@ using Signum.Utilities.Reflection;
 using Signum.Utilities.Synchronization;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Data;
@@ -21,10 +22,10 @@ namespace Signum.Utilities
     {
         class UniqueExExpander : IMethodExpander
         {
-            static MethodInfo miWhereE = ReflectionTools.GetMethodInfo(() => Enumerable.Where<int>(null, a => false)).GetGenericMethodDefinition();
-            static MethodInfo miWhereQ = ReflectionTools.GetMethodInfo(() => Queryable.Where<int>(null, a => false)).GetGenericMethodDefinition();
+            static MethodInfo miWhereE = ReflectionTools.GetMethodInfo(() => Enumerable.Where<int>(null!, a => false)).GetGenericMethodDefinition();
+            static MethodInfo miWhereQ = ReflectionTools.GetMethodInfo(() => Queryable.Where<int>(null!, a => false)).GetGenericMethodDefinition();
 
-            public Expression Expand(Expression instance, Expression[] arguments, MethodInfo mi)
+            public Expression Expand(Expression? instance, Expression[] arguments, MethodInfo mi)
             {
                 bool query = mi.GetParameters()[0].ParameterType.IsInstantiationOf(typeof(IQueryable<>));
 
@@ -53,7 +54,7 @@ namespace Signum.Utilities
             if (predicate == null)
                 throw new ArgumentNullException(nameof(predicate));
 
-            T result = default(T)!;
+            T result = default!;
             bool found = false;
             foreach (T item in collection)
             {
@@ -158,8 +159,7 @@ namespace Signum.Utilities
         }
 
         [MethodExpander(typeof(UniqueExExpander))]
-        [return: MaybeNull]
-        public static T SingleOrDefaultEx<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
+        public static T? SingleOrDefaultEx<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
         {
             if (collection == null)
                 throw new ArgumentNullException(nameof(collection));
@@ -167,7 +167,7 @@ namespace Signum.Utilities
             if (predicate == null)
                 throw new ArgumentNullException(nameof(predicate));
 
-            T result = default(T)!;
+            T result = default!;
             bool found = false;
             foreach (T item in collection)
             {
@@ -185,14 +185,12 @@ namespace Signum.Utilities
         }
 
         [MethodExpander(typeof(UniqueExExpander))]
-        [return: MaybeNull]
-        public static T SingleOrDefaultEx<T>(this IQueryable<T> query, Expression<Func<T, bool>> predicate)
+        public static T? SingleOrDefaultEx<T>(this IQueryable<T> query, Expression<Func<T, bool>> predicate)
         {
             return query.Where(predicate).SingleOrDefaultEx();
         }
 
-        [return: MaybeNull]
-        public static T SingleOrDefaultEx<T>(this IEnumerable<T> collection)
+        public static T? SingleOrDefaultEx<T>(this IEnumerable<T> collection)
         {
             if (collection == null)
                 throw new ArgumentNullException(nameof(collection));
@@ -200,7 +198,7 @@ namespace Signum.Utilities
             using (IEnumerator<T> enumerator = collection.GetEnumerator())
             {
                 if (!enumerator.MoveNext())
-                    return default(T)!;
+                    return default!;
 
                 T current = enumerator.Current;
 
@@ -211,8 +209,7 @@ namespace Signum.Utilities
             throw new InvalidOperationException("Sequence contains more than one {0}".FormatWith(typeof(T).TypeName()));
         }
 
-        [return: MaybeNull]
-        public static T SingleOrDefaultEx<T>(this IEnumerable<T> collection, Func<string> errorMoreThanOne, bool forEndUser = false)
+        public static T? SingleOrDefaultEx<T>(this IEnumerable<T> collection, Func<string> errorMoreThanOne, bool forEndUser = false)
         {
             if (collection == null)
                 throw new ArgumentNullException(nameof(collection));
@@ -220,7 +217,7 @@ namespace Signum.Utilities
             using (IEnumerator<T> enumerator = collection.GetEnumerator())
             {
                 if (!enumerator.MoveNext())
-                    return default(T)!;
+                    return default!;
 
                 T current = enumerator.Current;
 
@@ -284,21 +281,18 @@ namespace Signum.Utilities
         }
 
         [MethodExpander(typeof(UniqueExExpander))]
-        [return: MaybeNull]
-        public static T SingleOrManyEx<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
+        public static T? SingleOrManyEx<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
         {
             return collection.Where(predicate).FirstEx();
         }
 
         [MethodExpander(typeof(UniqueExExpander))]
-        [return: MaybeNull]
         public static T SingleOrManyEx<T>(this IQueryable<T> query, Expression<Func<T, bool>> predicate)
         {
             return query.Where(predicate).FirstEx();
         }
 
-        [return: MaybeNull]
-        public static T SingleOrManyEx<T>(this IEnumerable<T> collection)
+        public static T? SingleOrManyEx<T>(this IEnumerable<T> collection)
         {
             if (collection == null)
                 throw new ArgumentNullException(nameof(collection));
@@ -311,14 +305,13 @@ namespace Signum.Utilities
                 T current = enumerator.Current;
 
                 if (enumerator.MoveNext())
-                    return default(T)!;
+                    return default!;
 
                 return current;
             }
         }
 
-        [return: MaybeNull]
-        public static T SingleOrManyEx<T>(this IEnumerable<T> collection, Func<string> errorZero, bool forEndUser = false)
+        public static T? SingleOrManyEx<T>(this IEnumerable<T> collection, Func<string> errorZero, bool forEndUser = false)
         {
             if (collection == null)
                 throw new ArgumentNullException(nameof(collection));
@@ -331,35 +324,14 @@ namespace Signum.Utilities
                 T current = enumerator.Current;
 
                 if (enumerator.MoveNext())
-                    return default(T)!;
-
-                return current;
-            }
-        }
-
-        //Throws exception if 0, returns if one, returns default if many
-        [return: MaybeNull]
-        public static T SingleOrMany<T>(this IEnumerable<T> collection)
-        {
-            if (collection == null)
-                throw new ArgumentNullException(nameof(collection));
-
-            using (IEnumerator<T> enumerator = collection.GetEnumerator())
-            {
-                if (!enumerator.MoveNext())
-                    throw new InvalidOperationException("The collection has no elements");
-
-                T current = enumerator.Current;
-
-                if (enumerator.MoveNext())
-                    return default(T)!;
+                    return default!;
 
                 return current;
             }
         }
 
         //returns default if 0 or many, returns if one
-        public static T Only<T>(this IEnumerable<T> collection)
+        public static T? Only<T>(this IEnumerable<T> collection)
         {
             if (collection == null)
                 throw new ArgumentNullException(nameof(collection));
@@ -367,12 +339,12 @@ namespace Signum.Utilities
             using (IEnumerator<T> enumerator = collection.GetEnumerator())
             {
                 if (!enumerator.MoveNext())
-                    return default(T)!;
+                    return default!;
 
                 T current = enumerator.Current;
 
                 if (enumerator.MoveNext())
-                    return default(T)!;
+                    return default!;
 
                 return current;
             }
@@ -403,7 +375,7 @@ namespace Signum.Utilities
         {
             static readonly MethodInfo miAny = ReflectionTools.GetMethodInfo((int[] a) => a.Any()).GetGenericMethodDefinition();
 
-            public Expression Expand(Expression instance, Expression[] arguments, MethodInfo mi)
+            public Expression Expand(Expression? instance, Expression[] arguments, MethodInfo mi)
             {
                 return Expression.Not(Expression.Call(miAny.MakeGenericMethod(mi.GetGenericArguments()), arguments));
             }
@@ -569,7 +541,7 @@ namespace Signum.Utilities
             if (values.Length == 0)
                 return "";
 
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
             sb.Append(values[0]);
 
             for (int i = 1; i < values.Length - 1; i++)
@@ -581,7 +553,7 @@ namespace Signum.Utilities
             if (values.Length > 1)
             {
                 sb.Append(lastSeparator);
-                sb.Append(values[values.Length - 1]);
+                sb.Append(values[^1]);
             }
 
             return sb.ToString();
@@ -615,9 +587,9 @@ namespace Signum.Utilities
 
         public static DataTable ToDataTable<T>(this IEnumerable<T> collection, bool withDescriptions = false)
         {
-            DataTable table = new DataTable();
+            var table = new DataTable();
 
-            List<MemberEntry<T>> members = MemberEntryFactory.GenerateList<T>();
+            List<MemberEntry<T>> members = MemberEntryFactory.GenerateList<T>(MemberOptions.Default);
             foreach (var m in members)
             {
                 var name = withDescriptions ? m.MemberInfo.GetCustomAttribute<DescriptionAttribute>()?.Description ?? m.Name : m.Name;
@@ -631,7 +603,7 @@ namespace Signum.Utilities
 
         public static DataTable Transpose(this DataTable table, string captionName = "")
         {
-            DataTable result = new DataTable();
+            var result = new DataTable();
             result.Columns.Add(new DataColumn("Column", typeof(string)) { Caption = captionName});
 
             var list = table.Columns.Cast<DataColumn>().Skip(1).Select(a => a.DataType).Distinct().ToList();
@@ -663,7 +635,7 @@ namespace Signum.Utilities
         #region String Tables
         public static string[,] ToStringTable<T>(this IEnumerable<T> collection)
         {
-            List<MemberEntry<T>> members = MemberEntryFactory.GenerateList<T>();
+            List<MemberEntry<T>> members = MemberEntryFactory.GenerateList<T>(MemberOptions.Default);
 
             string[,] result = new string[members.Count, collection.Count() + 1];
 
@@ -726,8 +698,8 @@ namespace Signum.Utilities
 
         public static string ToFormattedTable<T>(this IEnumerable<T> collection, string? title = null, bool longHeader = false)
         {
-            StringBuilder sb = new StringBuilder();
-            using (StringWriter sw = new StringWriter(sb))
+            var sb = new StringBuilder();
+            using (var sw = new StringWriter(sb))
                 collection.WriteFormattedStringTable(sw, title, longHeader);
             return sb.ToString();
         }
@@ -737,9 +709,9 @@ namespace Signum.Utilities
         public static T WithMin<T, V>(this IEnumerable<T> collection, Func<T, V> valueSelector)
           where V : IComparable<V>
         {
-            T result = default(T)!;
+            T result = default!;
             bool hasMin = false;
-            V min = default(V)!;
+            V min = default!;
             foreach (var item in collection)
             {
                 V val = valueSelector(item);
@@ -757,9 +729,9 @@ namespace Signum.Utilities
         public static T WithMax<T, V>(this IEnumerable<T> collection, Func<T, V> valueSelector)
                where V : IComparable<V>
         {
-            T result = default(T)!;
+            T result = default!;
             bool hasMax = false;
-            V max = default(V)!;
+            V max = default!;
 
             foreach (var item in collection)
             {
@@ -778,7 +750,7 @@ namespace Signum.Utilities
                where V : IComparable<V>
         {
             List<T> result = new List<T>();
-            V min = default(V)!;
+            V min = default!;
 
             foreach (var item in collection)
             {
@@ -799,7 +771,7 @@ namespace Signum.Utilities
                where V : IComparable<V>
         {
             List<T> result = new List<T>();
-            V max = default(V)!;
+            V max = default!;
 
             foreach (var item in collection)
             {
@@ -817,11 +789,11 @@ namespace Signum.Utilities
         }
 
         public static MinMax<T> WithMinMaxPair<T, V>(this IEnumerable<T> collection, Func<T, V> valueSelector)
-        where V : IComparable<V>
+            where V : IComparable<V>
         {
-            T withMin = default(T)!, withMax = default(T)!;
+            T withMin = default!, withMax = default!;
             bool hasMin = false, hasMax = false;
-            V min = default(V)!, max = default(V)!;
+            V min = default!, max = default!;
             foreach (var item in collection)
             {
                 V val = valueSelector(item);
@@ -847,7 +819,7 @@ namespace Signum.Utilities
             where T : struct, IComparable<T>, IEquatable<T>
         {
             bool has = false;
-            T min = default(T), max = default(T);
+            T min = default, max = default;
             foreach (var item in collection)
             {
                 if (!has)
@@ -871,7 +843,7 @@ namespace Signum.Utilities
             where V : struct, IComparable<V>, IEquatable<V>
         {
             bool has = false;
-            V min = default(V), max = default(V);
+            V min = default, max = default;
             foreach (var item in collection)
             {
                 V val = valueSelector(item);
@@ -1029,8 +1001,8 @@ namespace Signum.Utilities
                 while (okA & (okA = enumA.MoveNext()) | okB & (okB = enumB.MoveNext()))
                 {
                     yield return resultSelector(
-                        okA ? enumA.Current : default(A)!,
-                        okB ? enumB.Current : default(B)!);
+                        okA ? enumA.Current : default!,
+                        okB ? enumB.Current : default!);
                 }
             }
         }
@@ -1044,8 +1016,8 @@ namespace Signum.Utilities
             {
                 while ((okA &= enumA.MoveNext()) || (okB &= enumB.MoveNext()))
                 {
-                    var first = okA ? enumA.Current : default(A)!;
-                    var second = okB ? enumB.Current : default(B)!;
+                    var first = okA ? enumA.Current : default!;
+                    var second = okB ? enumB.Current : default!;
 
                     yield return (first, second);
                 }
@@ -1128,7 +1100,7 @@ namespace Signum.Utilities
 
             static EmptyReadOnlyCollection()
             {
-                EmptyReadOnlyCollection<T>.Instance = new ReadOnlyCollection<T>(new T[0]);
+                EmptyReadOnlyCollection<T>.Instance = new ReadOnlyCollection<T>(Array.Empty<T>());
             }
         }
 
@@ -1169,11 +1141,26 @@ namespace Signum.Utilities
         }
 
 
+        public static ImmutableStack<T> PushRange<T>(this ImmutableStack<T> stack, IEnumerable<T> elements)
+        {
+            foreach (var item in elements)
+                stack = stack.Push(item);
+
+            return stack;
+        }
 
         public static void PushRange<T>(this Stack<T> stack, IEnumerable<T> elements)
         {
             foreach (var item in elements)
                 stack.Push(item);
+        }
+
+        public static ImmutableQueue<T> EnqueueRange<T>(this ImmutableQueue<T> queue, IEnumerable<T> elements)
+        {
+            foreach (var item in elements)
+                queue = queue.Enqueue(item);
+
+            return queue;
         }
 
         public static void EnqueueRange<T>(this Queue<T> queue, IEnumerable<T> elements)
@@ -1205,6 +1192,7 @@ namespace Signum.Utilities
            Func<C, K> currentKeySelector,
            Func<S, K> shouldKeySelector,
            Func<C, S, R> resultSelector, string action)
+            where K : notnull
         {
 
             var currentDictionary = currentCollection.ToDictionary(currentKeySelector);
@@ -1229,6 +1217,7 @@ namespace Signum.Utilities
           Func<C, K> currentKeySelector,
           Func<S, K> shouldKeySelector,
           Func<C, S, R> resultSelector, string action)
+            where K : notnull
         {
 
             var currentDictionary = currentCollection.ToDictionary(currentKeySelector);
@@ -1284,6 +1273,7 @@ Consider Synchronize.");
             Func<C, K> currentKeySelector,
             Func<S, K> shouldKeySelector,
             Func<C, S, R> resultSelector)
+            where K : notnull
         {
             var currentDictionary = currentCollection.ToDictionary(currentKeySelector);
             var newDictionary = shouldCollection.ToDictionary(shouldKeySelector);
@@ -1374,7 +1364,7 @@ Consider Synchronize.");
         Circular,
     }
 
-    public class Iteration<T>
+    public struct Iteration<T>
     {
         readonly T value;
         readonly bool isFirst;

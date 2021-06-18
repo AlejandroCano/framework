@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using System.Collections.ObjectModel;
 using Signum.Utilities.ExpressionTrees;
 using Signum.Utilities;
+using Signum.Engine.Maps;
 
 namespace Signum.Engine.Linq
 {
@@ -14,9 +15,10 @@ namespace Signum.Engine.Linq
 
         public static Expression Remove(Expression expression)
         {
-            expression = new RedundantSubqueryRemover().Visit(expression);
-            expression = SubqueryMerger.Merge(expression);
-            return expression;
+            var removed = new RedundantSubqueryRemover().Visit(expression);
+            var merged = SubqueryMerger.Merge(removed);
+            var simplified = JoinSimplifier.Simplify(merged);
+            return simplified;
         }
 
         protected internal override Expression VisitSelect(SelectExpression select)
@@ -51,8 +53,7 @@ namespace Signum.Engine.Linq
         {
             foreach (ColumnDeclaration decl in select.Columns)
             {
-                ColumnExpression? col = decl.Expression as ColumnExpression;
-                if (col == null || decl.Name != col.Name)
+                if (decl.Expression is not ColumnExpression col || decl.Name != col.Name)
                 {
                     return false;
                 }
@@ -62,25 +63,21 @@ namespace Signum.Engine.Linq
 
         internal static bool IsNameMapProjection(SelectExpression select)
         {
-            if (select.From is TableExpression) return false;
-            SelectExpression? fromSelect = select.From as SelectExpression;
-            if (fromSelect == null || select.Columns.Count != fromSelect.Columns.Count)
+            if (select.From is TableExpression) 
                 return false;
+            
+            if (select.From is not SelectExpression fromSelect || select.Columns.Count != fromSelect.Columns.Count)
+                return false;
+            
             ReadOnlyCollection<ColumnDeclaration> fromColumns = fromSelect.Columns;
             // test that all columns in 'select' are refering to columns in the same position
             // in from.
             for (int i = 0, n = select.Columns.Count; i < n; i++)
             {
-                ColumnExpression? col = select.Columns[i].Expression as ColumnExpression;
-                if (col == null || !(col.Name == fromColumns[i].Name))
+                if (select.Columns[i].Expression is not ColumnExpression col || !(col.Name == fromColumns[i].Name))
                     return false;
             }
             return true;
-        }
-
-        internal static bool IsInitialProjection(SelectExpression select)
-        {
-            return select.From is TableExpression;
         }
 
         class RedundantSubqueryGatherer : DbExpressionVisitor
@@ -134,7 +131,46 @@ namespace Signum.Engine.Linq
             {
                 return exists;
             }
+
+            protected internal override Expression VisitJoin(JoinExpression join)
+            {
+                var result = (JoinExpression)base.VisitJoin(join);
+                if (result.JoinType == JoinType.CrossApply || 
+                    result.JoinType == JoinType.OuterApply)
+                {
+                    if (Schema.Current.Settings.IsPostgres && this.redundant != null && result.Right is SelectExpression s && this.redundant.Contains(s))
+                    {
+                        if (HasJoins(s))
+                            this.redundant.Remove(s);
+                    }
+                }
+
+                return result;
+            }
+
+            protected internal override Expression VisitSetOperator(SetOperatorExpression set)
+            {
+                var result = (SetOperatorExpression)base.VisitSetOperator(set);
+
+                if(this.redundant != null)
+                {
+                    if (result.Left is SelectExpression l)
+                        this.redundant.Remove(l);
+
+                    if (result.Right is SelectExpression r)
+                        this.redundant.Remove(r);
+                }
+
+                return result;
+            }
+
+            static bool HasJoins(SelectExpression s)
+            {
+                return s.From is JoinExpression || s.From is SelectExpression s2 && HasJoins(s2);
+            }
         }
+
+        
 
         class SubqueryMerger : DbExpressionVisitor
         {
@@ -266,9 +302,7 @@ namespace Signum.Engine.Linq
 
             static bool HasApplyJoin(SourceExpression source)
             {
-                var join = source as JoinExpression;
-
-                if (join == null)
+                if (source is not JoinExpression join)
                     return false;
 
                 return join.JoinType == JoinType.CrossApply || join.JoinType == JoinType.OuterApply || HasApplyJoin(join.Left) || HasApplyJoin(join.Right);
@@ -322,6 +356,37 @@ namespace Signum.Engine.Linq
             {
                 return base.VisitScalar(scalar);
             }
+        }
+    }
+
+    class JoinSimplifier : DbExpressionVisitor
+    {
+        internal static Expression Simplify(Expression expression)
+        {
+            return new JoinSimplifier().Visit(expression);
+        }
+
+        protected internal override Expression VisitJoin(JoinExpression join)
+        {
+            SourceExpression left = this.VisitSource(join.Left);
+            SourceExpression right = this.VisitSource(join.Right);
+            Expression? condition = this.Visit(join.Condition);
+
+            if(join.JoinType == JoinType.CrossApply || join.JoinType == JoinType.OuterApply)
+            {
+                if (right is TableExpression)
+                {
+                    return new JoinExpression(join.JoinType == JoinType.OuterApply ? JoinType.LeftOuterJoin : JoinType.InnerJoin, left, right,
+                        Schema.Current.Settings.IsPostgres ? (Expression)new SqlConstantExpression(true) :
+                        Expression.Equal(new SqlConstantExpression(1), new SqlConstantExpression(1)));
+                }
+            }
+
+            if (left != join.Left || right != join.Right || condition != join.Condition)
+            {
+                return new JoinExpression(join.JoinType, left, right, condition);
+            }
+            return join;
         }
     }
 }

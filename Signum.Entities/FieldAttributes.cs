@@ -7,6 +7,7 @@ using Signum.Utilities;
 using Signum.Entities.Reflection;
 using Signum.Utilities.ExpressionTrees;
 using Signum.Entities.Basics;
+using NpgsqlTypes;
 
 namespace Signum.Entities
 {
@@ -110,7 +111,7 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
         public static Implementations By(params Type[] types)
         {
             if (types == null || types.Length == 0)
-                return new Implementations { arrayOrType = types ?? new Type[0] };
+                return new Implementations { arrayOrType = types ?? Array.Empty<Type>() };
 
             if (types.Length == 1)
                 return By(types[0]);
@@ -188,6 +189,16 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
                 arrayOrType is Type t ? t.AssemblyQualifiedName :
                 arrayOrType is Type[] ts ? ts.ToString(a => a.AssemblyQualifiedName, "|") : null);
         }
+
+        public static bool operator ==(Implementations left, Implementations right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Implementations left, Implementations right)
+        {
+            return !(left == right);
+        }
     }
 
     [Serializable, AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
@@ -214,7 +225,9 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
         }
     }
 
-
+    /// <summary>
+    /// Avoids that an Entity field has database representation (column or MList table)
+    /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class IgnoreAttribute : Attribute
     {
@@ -242,64 +255,69 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
 
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
-    public class SqlDbTypeAttribute : Attribute
-    {
+    public class DbTypeAttribute : Attribute
+    {   
         SqlDbType? sqlDbType;
-        int? size;
-        int? scale;
-
+        public bool HasSqlDbType => sqlDbType.HasValue;
         public SqlDbType SqlDbType
         {
             get { return sqlDbType!.Value; }
             set { sqlDbType = value; }
         }
 
-        public bool HasSqlDbType
+        NpgsqlDbType? npgsqlDbType;
+        public bool HasNpgsqlDbType => npgsqlDbType.HasValue;
+        public NpgsqlDbType NpgsqlDbType
         {
-            get { return sqlDbType.HasValue; }
+            get { return npgsqlDbType!.Value; }
+            set { npgsqlDbType = value; }
         }
 
+        int? size;
+        public bool HasSize => size.HasValue;
         public int Size
         {
             get { return size!.Value; }
             set { size = value; }
         }
 
-        public bool HasSize
-        {
-            get { return size.HasValue; }
-        }
 
+        int? scale;
+        public bool HasScale => scale.HasValue;
         public int Scale
         {
             get { return scale!.Value; }
             set { scale = value; }
         }
 
-        public bool HasScale
-        {
-            get { return scale.HasValue; }
-        }
 
         public string? UserDefinedTypeName { get; set; }
 
         public string? Default { get; set; }
 
+        public string? DefaultSqlServer { get; set; }
+        public string? DefaultPostgres { get; set; }
+
+        public string? GetDefault(bool isPostgres)
+        {
+            return (isPostgres ? DefaultPostgres : DefaultSqlServer) ?? Default;
+        }
+
         public string? Collation { get; set; }
 
-        public const string NewId = "NEWID()";
-        public const string NewSequentialId = "NEWSEQUENTIALID()";
+        public const string SqlServer_NewId = "NEWID()";
+        public const string SqlServer_NewSequentialId = "NEWSEQUENTIALID()";
+        public const string Postgres_UuidGenerateV1= "uuid_generate_v1()";
     }
 
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Enum | AttributeTargets.Field | AttributeTargets.Property /*MList fields*/, Inherited = true, AllowMultiple = false)]
-    public sealed class PrimaryKeyAttribute : SqlDbTypeAttribute
+    public sealed class PrimaryKeyAttribute : DbTypeAttribute
     {
         public Type Type { get; set; }
 
         public string Name { get; set; }
 
         public bool Identity { get; set; }
-
 
         bool identityBehaviour;
 
@@ -309,9 +327,10 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
             set
             {
                 identityBehaviour = value;
-                if (Type == typeof(Guid))
+                if (Type == typeof(Guid) && identityBehaviour)
                 {
-                    this.Default = identityBehaviour ? NewId : null;
+                    this.DefaultSqlServer = SqlServer_NewId;
+                    this.DefaultPostgres = Postgres_UuidGenerateV1;
                 }
             }
         }
@@ -320,7 +339,7 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
         {
             this.Type = type;
             this.Name = name;
-            this.Identity = type == typeof(Guid) ? false : true;
+            this.Identity = type != typeof(Guid);
             this.IdentityBehaviour = true;
         }
     }
@@ -352,6 +371,11 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
     {
     }
 
+    [AttributeUsage(AttributeTargets.Class)]
+    public sealed class CacheViewMetadataAttribute : Attribute
+    {
+    }
+
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Enum | AttributeTargets.Field | AttributeTargets.Property /*MList fields*/, Inherited = true, AllowMultiple = false)]
     public sealed class TableNameAttribute : Attribute
     {
@@ -363,15 +387,17 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
         public TableNameAttribute(string fullName)
         {
             var parts = fullName.Split('.');
-            this.Name = parts.ElementAtOrDefault(parts.Length - 1).Trim('[', ']');
+            this.Name = parts.ElementAt(parts.Length - 1).Trim('[', ']');
             this.SchemaName = parts.ElementAtOrDefault(parts.Length - 2)?.Trim('[', ']');
             this.DatabaseName = parts.ElementAtOrDefault(parts.Length - 3)?.Trim('[', ']');
             this.ServerName = parts.ElementAtOrDefault(parts.Length - 4)?.Trim('[', ']');
         }
     }
 
+   
+
     [AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = false)]
-    public sealed class TicksColumnAttribute : SqlDbTypeAttribute
+    public sealed class TicksColumnAttribute : DbTypeAttribute
     {
         public bool HasTicks { get; private set; }
 
@@ -394,6 +420,7 @@ sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.P
         public string? TemporalTableName { get; set; }
         public string StartDateColumnName { get; set; } = "SysStartDate";
         public string EndDateColumnName { get; set; } = "SysEndDate";
+        public string PostgreeSysPeriodColumname { get; set; } = "sys_period";
     }
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]

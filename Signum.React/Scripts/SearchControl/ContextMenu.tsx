@@ -13,7 +13,8 @@ export interface ContextMenuPosition {
 
 export interface ContextMenuProps extends React.Props<ContextMenu>, React.HTMLAttributes<HTMLUListElement> {
   position: ContextMenuPosition;
-  onHide: () => void;
+  onHide: (e: MouseEvent | TouchEvent) => void;
+  alignRight?: boolean;
 }
 
 export default class ContextMenu extends React.Component<ContextMenuProps> {
@@ -27,9 +28,9 @@ export default class ContextMenu extends React.Component<ContextMenuProps> {
 
   static childContextTypes = { "toggle": PropTypes.func };
 
-  static getPosition(e: React.MouseEvent<any>, container: HTMLElement): ContextMenuPosition {
+  static getPositionEvent(e: React.MouseEvent<any>): ContextMenuPosition {
 
-    const op = DomUtils.offsetParent(container);
+    const op = DomUtils.offsetParent(e.currentTarget);
 
     const rec = op?.getBoundingClientRect();
 
@@ -42,14 +43,29 @@ export default class ContextMenu extends React.Component<ContextMenuProps> {
     return result;
   }
 
+  static getPositionElement(button: HTMLElement, alignRight?: boolean): ContextMenuPosition {
+    const op = DomUtils.offsetParent(button);
+
+    const recOp = op!.getBoundingClientRect();
+    const recButton = button.getBoundingClientRect();
+
+    var result = ({
+      left: recButton.left + (alignRight ? recButton.width : 0) - recOp.left,
+      top: recButton.top + recButton.height - recOp.top,
+      width: (op ? op.offsetWidth : window.innerWidth)
+    }) as ContextMenuPosition;
+
+    return result;
+  }
+
   render() {
 
-    const { position, onHide, ref, ...props } = this.props;
+    const { position, onHide, ref, alignRight, ...props } = this.props;
 
-    const style: React.CSSProperties = { zIndex: 999, display: "block", position: "absolute" };
+    const style: React.CSSProperties = { zIndex: 9999, display: "block", position: "absolute" };
 
     style.top = position.top + "px";
-    if (document.body.className.contains("rtl-mode"))
+    if (document.body.className.contains("rtl-mode") !== Boolean(alignRight))
       style.right = (position.width - position.left) + "px";
     else
       style.left = position.left + "px";
@@ -57,7 +73,7 @@ export default class ContextMenu extends React.Component<ContextMenuProps> {
     const childrens = React.Children.map(this.props.children,
       (rc) => {
         let c = rc as React.ReactElement<DropdownItemProps>;
-        return c && React.cloneElement(c, { onClick: combineFunction(c.props.onClick, onHide) } as Partial<DropdownItemProps>);
+        return c && React.cloneElement(c, { onClick: e => { c.props.onClick && c.props.onClick(e); onHide(e.nativeEvent); } } as Partial<DropdownItemProps>);
       });
 
     const ul = (
@@ -67,7 +83,6 @@ export default class ContextMenu extends React.Component<ContextMenuProps> {
     );
 
     return ul;
-    //return <RootCloseWrapper onRootClose={onHide}>{ul}</RootCloseWrapper>;
   }
 
 
@@ -93,6 +108,6 @@ export default class ContextMenu extends React.Component<ContextMenuProps> {
       return;
     }
 
-    this.props.onHide();
+    this.props.onHide(e);
   }
 }

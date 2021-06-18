@@ -78,7 +78,7 @@ namespace Signum.Engine.DynamicQuery
                 Pagination = new Pagination.All(),
             };
 
-            if (request.ValueToken == null || request.ValueToken is AggregateToken && ((AggregateToken)request.ValueToken).AggregateFunction == AggregateFunction.Count)
+            if (request.ValueToken == null || request.ValueToken is AggregateToken at && at.AggregateFunction == AggregateFunction.Count)
             {
                 req.Pagination = new Pagination.Paginate(1, 1);
                 req.Columns.Add(new Column(this.EntityColumnFactory().BuildColumnDescription(), QueryName));
@@ -86,12 +86,18 @@ namespace Signum.Engine.DynamicQuery
                 return result.TotalElements!.Value;
             }
 
-            else if (request.ValueToken is AggregateToken)
+            else if (request.ValueToken is AggregateToken agt)
             {
                 var parent = request.ValueToken.Parent!;
                 req.Columns.Add(new Column(parent, parent.NiceName()));
                 var result = await Execute(req, GetQueryDescription(), cancellationToken);
-                return result.SimpleAggregate((AggregateToken)request.ValueToken);
+                return result.SimpleAggregate(agt);
+            }
+            else if(request.MultipleValues)
+            {
+                req.Columns.Add(new Column(request.ValueToken, request.ValueToken.NiceName()));
+                var result = await Execute(req, GetQueryDescription(), cancellationToken);
+                return result.SelectOne(request.ValueToken).ToList();
             }
             else
             {
@@ -117,7 +123,7 @@ namespace Signum.Engine.DynamicQuery
 
             DEnumerable<T> mr = await Execute(req, GetQueryDescription(), cancellationToken);
 
-            return (Lite<Entity>)mr.Collection.Select(entitySelector.Value).Unique(request.UniqueType);
+            return (Lite<Entity>?)mr.Collection.Select(entitySelector.Value).Unique(request.UniqueType);
         }
 
         static readonly Lazy<Func<object, Lite<IEntity>>> entitySelector = new Lazy<Func<object, Lite<IEntity>>>(() =>
@@ -126,12 +132,17 @@ namespace Signum.Engine.DynamicQuery
             return  Expression.Lambda<Func<object, Lite<IEntity>>>(TupleReflection.TupleChainProperty(pe, 0), pe).Compile();
         }, true);
 
-        public override IQueryable<Lite<Entity>> GetEntities(QueryEntitiesRequest request)
+        public override IQueryable<Lite<Entity>> GetEntitiesLite(QueryEntitiesRequest request)
         {
             throw new NotImplementedException();
         }
 
         public override DQueryable<object> GetDQueryable(DQueryableRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override IQueryable<Entity> GetEntitiesFull(QueryEntitiesRequest request)
         {
             throw new NotImplementedException();
         }

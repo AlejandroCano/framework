@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Collections;
+using System.Runtime.CompilerServices;
 
 namespace Signum.Utilities
 {
@@ -139,7 +140,6 @@ namespace Signum.Utilities
     public class ThreadVariable<T> : Variable<T>, IThreadVariable
     {
         readonly AsyncLocal<T> store = new AsyncLocal<T>();
-
         internal ThreadVariable(string name) : base(name) { }
 
         public override T Value
@@ -152,7 +152,7 @@ namespace Signum.Utilities
 
         public override void Clean()
         {
-            Value = default(T)!;
+            Value = default!;
         }
     }
 
@@ -168,7 +168,7 @@ namespace Signum.Utilities
         public T GetDefaulValue()
         {
             if (ValueFactory == null)
-                return default(T)!;
+                return default!;
 
             Value = ValueFactory();
 
@@ -200,7 +200,7 @@ namespace Signum.Utilities
 
             public override T Value
             {
-                get { return default(T)!; }
+                get { return default!; }
                 set { throw new InvalidOperationException("No session found to set '{0}'".FormatWith(this.Name)); }
             }
 

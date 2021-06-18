@@ -1,39 +1,34 @@
-﻿ul.sf-widgets
-{
-    float:right;
+﻿ul.sf-widgets {
     list-style-type: none;
-    margin-top:-34px;
+    margin-top: -34px;
+    display: flex;
+    flex-direction: row-reverse;
+    float:right;
 }
 
-body.rtl ul.sf-widgets{
-    float:left;
+body.rtl ul.sf-widgets {
+   float:left;
 }
 
-.modal-body > ul.sf-widgets
-{
-    margin-top: -60px;
+.modal-body > div > ul.sf-widgets {
+    margin-top: -45px;
 }
 
-ul.sf-widgets>li
-{
-    display:block;
-    position:relative;
-    float: left;
+ul.sf-widgets > li {
+    display: block;
+    position: relative;
     margin-left: 4px;
 }
 
-ul.dropdown-menu li a span.sf-alert-active
-{
-    font-weight:bold;
+ul.dropdown-menu li a span.sf-alert-active {
+    font-weight: bold;
 }
 
-ul.dropdown-menu li a span.sf-alert-alerted.sf-alert-active
-{
-    color:#FF4400;
+ul.dropdown-menu li a span.sf-alert-alerted.sf-alert-active {
+    color: #FF4400;
 }
 
-span.sf-widget-count
-{
+span.sf-widget-count {
     padding: 2px;
 }
 
@@ -43,8 +38,8 @@ a.badge span.sf-alert-active {
     border: 2px solid #999;
 }
 
-a.badge span.sf-alert-active.sf-alert-alerted {
-    font-size: 15px;
-    padding: 4px;
-    background: #FF4400;
-}
+    a.badge span.sf-alert-active.sf-alert-alerted {
+        font-size: 15px;
+        padding: 4px;
+        background: #FF4400;
+    }

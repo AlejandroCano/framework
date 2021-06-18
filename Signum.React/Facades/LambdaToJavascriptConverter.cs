@@ -39,7 +39,7 @@ namespace Signum.React.Facades
 
             if (expr is ConstantExpression ce && expr.Type == typeof(string))
             {
-                var str = (string)ce.Value;
+                var str = (string)ce.Value!;
 
                 if (!str.HasText())
                     return "\"\"";
@@ -49,12 +49,12 @@ namespace Signum.React.Facades
 
             if (expr is MemberExpression me)
             {
-                var a = ToJavascript(param, me.Expression);
+                var a = ToJavascript(param, me.Expression!);
 
                 if (a == null)
                     return null;
 
-                if (me.Expression.Type.IsNullable())
+                if (me.Expression!.Type.IsNullable())
                 {
                     if (me.Member.Name == "HasValue")
                         return a + " != null";
@@ -79,23 +79,33 @@ namespace Signum.React.Facades
             if (expr is MethodCallExpression mc)
             {
                 if (mc.Method.Name == "ToString")
-                    return ToJavascriptToString(param, mc.Object, mc.TryGetArgument("format") is ConstantExpression format ? (string)format.Value : null);
+                    return ToJavascriptToString(param, mc.Object!, mc.TryGetArgument("format") is ConstantExpression format ? (string)format.Value! : null);
 
                 if (mc.Method.DeclaringType == typeof(DateTime))
                 {
                     switch (mc.Method.Name)
                     {
-                        case "ToShortDateString": return ToJavascriptToString(param, mc.Object, "d");
-                        case "ToShortTimeString": return ToJavascriptToString(param, mc.Object, "t");
-                        case "ToLongDateString": return ToJavascriptToString(param, mc.Object, "D");
-                        case "ToLongTimeString": return ToJavascriptToString(param, mc.Object, "T");
+                        case nameof(DateTime.ToShortDateString): return ToJavascriptToString(param, mc.Object!, "d");
+                        case nameof(DateTime.ToShortTimeString): return ToJavascriptToString(param, mc.Object!, "t");
+                        case nameof(DateTime.ToLongDateString): return ToJavascriptToString(param, mc.Object!, "D");
+                        case nameof(DateTime.ToLongTimeString): return ToJavascriptToString(param, mc.Object!, "T");
+                    }
+                }
+
+                if (mc.Method.DeclaringType == typeof(Date))
+                {
+                    switch (mc.Method.Name)
+                    {
+                        case  nameof(Date.ToShortString): return ToJavascriptToString(param, mc.Object!, "d");
+                        case  nameof(Date.ToLongString): return ToJavascriptToString(param, mc.Object!, "D");
+                        case  nameof(Date.ToString): return ToJavascriptToString(param, mc.Object!, "d");
                     }
                 }
 
                 if (mc.Method.DeclaringType == typeof(StringExtensions) && mc.Method.Name == nameof(StringExtensions.Etc))
                 {
                     var str = ToJavascriptToString(param, mc.GetArgument("str"));
-                    var max = ((ConstantExpression)mc.GetArgument("max")).Value.ToString();
+                    var max = ((ConstantExpression)mc.GetArgument("max")).Value!.ToString();
 
                     var etcString = mc.TryGetArgument("etcString");
 
@@ -142,13 +152,19 @@ namespace Signum.React.Facades
             string? formatFull = format == null ? null : (", '" + format + "'");
 
             if (expr.Type.UnNullify() == typeof(DateTime))
-                return "dateToString(" + r + formatFull + ")";
+                return "dateToString(" + r + ", 'DateTime'" +  formatFull + ")";
+
+            if (expr.Type.UnNullify() == typeof(Date))
+                return "dateToString(" + r + ", 'Date'" + formatFull + ")";
 
             if (expr.Type.UnNullify() == typeof(TimeSpan))
                 return "durationToString(" + r + formatFull + ")";
 
-            if (ReflectionTools.IsNumber(expr.Type.UnNullify()))
-                return "numberToString(" + r + formatFull + ")";
+            if (ReflectionTools.IsIntegerNumber(expr.Type.UnNullify()))
+                return "numberToString(" + r + (formatFull ?? ", 'D'") + ")";
+
+            if (ReflectionTools.IsDecimalNumber(expr.Type.UnNullify()))
+                return "numberToString(" + r + (formatFull ?? ", 'N'") + ")";
 
             return "valToString(" + r + ")";
         }

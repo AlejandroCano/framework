@@ -50,7 +50,7 @@ namespace Signum.Engine.Operations
                 return new Construct(symbol.Symbol);
             }
 
-            public void OverrideConstruct(Overrider<Func<object?[]?, T>> overrider)
+            public void OverrideConstruct(Overrider<Func<object?[]?, T?>> overrider)
             {
                 this.Construct = overrider(this.Construct);
             }
@@ -70,7 +70,7 @@ namespace Signum.Engine.Operations
 
                     try
                     {
-                        using (Transaction tr = new Transaction())
+                        using (var tr = new Transaction())
                         {
                             T? result = null;
                             using (OperationLogic.AllowSave<T>())
@@ -78,7 +78,8 @@ namespace Signum.Engine.Operations
                                 {
                                     result = Construct(args);
 
-                                    AssertEntity(result);
+                                    if (result != null)
+                                        AssertEntity(result);
 
                                     if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
                                     {
@@ -170,9 +171,9 @@ namespace Signum.Engine.Operations
                 return this;
             }
 
-            public Func<F, object?[]?, T> Construct { get; set; } = null!;
+            public Func<F, object?[]?, T?> Construct { get; set; } = null!;
 
-            public void OverrideConstruct(Overrider<Func<F, object?[]?, T>> overrider)
+            public void OverrideConstruct(Overrider<Func<F, object?[]?, T?>> overrider)
             {
                 this.Construct = overrider(this.Construct);
             }
@@ -234,7 +235,7 @@ namespace Signum.Engine.Operations
 
                     try
                     {
-                        using (Transaction tr = new Transaction())
+                        using (var tr = new Transaction())
                         {
                             T? result = null;
                             using (OperationLogic.AllowSave(origin.GetType()))
@@ -243,7 +244,8 @@ namespace Signum.Engine.Operations
                                 {
                                     result = Construct((F)origin, args);
 
-                                    AssertEntity(result);
+                                    if (result != null)
+                                        AssertEntity(result);
 
                                     if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
                                     {
@@ -324,9 +326,9 @@ namespace Signum.Engine.Operations
 
             public bool LogAlsoIfNotSaved { get; set; }
 
-            public Func<List<Lite<F>>, object?[]?, T> Construct { get; set; } = null!;
+            public Func<List<Lite<F>>, object?[]?, T?> Construct { get; set; } = null!;
 
-            public void OverrideConstruct(Overrider<Func<List<Lite<F>>, object?[]?, T>> overrider)
+            public void OverrideConstruct(Overrider<Func<List<Lite<F>>, object?[]?, T?>> overrider)
             {
                 this.Construct = overrider(this.Construct);
             }
@@ -372,7 +374,7 @@ namespace Signum.Engine.Operations
 
                     try
                     {
-                        using (Transaction tr = new Transaction())
+                        using (var tr = new Transaction())
                         {
                             T? result = null;
 
@@ -382,7 +384,8 @@ namespace Signum.Engine.Operations
                                 {
                                     result = OnConstruct(lites.Cast<Lite<F>>().ToList(), args);
 
-                                    AssertEntity(result);
+                                    if (result != null)
+                                        AssertEntity(result);
 
                                     if ((result != null && !result.IsNew) || LogAlsoIfNotSaved)
                                     {
@@ -427,7 +430,7 @@ namespace Signum.Engine.Operations
                 }
             }
 
-            protected virtual T OnConstruct(List<Lite<F>> lites, object?[]? args)
+            protected virtual T? OnConstruct(List<Lite<F>> lites, object?[]? args)
             {
                 return Construct(lites, args);
             }
@@ -521,7 +524,7 @@ namespace Signum.Engine.Operations
 
                     try
                     {
-                        using (Transaction tr = new Transaction())
+                        using (var tr = new Transaction())
                         {
                             using (OperationLogic.AllowSave(entity.GetType()))
                                 OperationLogic.OnSuroundOperation(this, log, entity, args).EndUsing(_ =>
@@ -663,7 +666,7 @@ namespace Signum.Engine.Operations
                         {
                             try
                             {
-                                using (Transaction tr = new Transaction())
+                                using (var tr = new Transaction())
                                 {
                                     OnDelete((T)entity, args);
 

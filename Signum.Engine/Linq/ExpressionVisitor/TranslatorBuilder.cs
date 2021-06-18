@@ -11,6 +11,7 @@ using Signum.Utilities.ExpressionTrees;
 using Signum.Engine.Maps;
 using Signum.Entities.Basics;
 using Signum.Entities.Internal;
+using Signum.Utilities.DataStructures;
 
 namespace Signum.Engine.Linq
 {
@@ -165,8 +166,6 @@ namespace Signum.Engine.Linq
             static readonly PropertyInfo piRetriever = ReflectionTools.GetPropertyInfo((IProjectionRow r) => r.Retriever);
             static readonly MemberExpression retriever = Expression.Property(row, piRetriever);
 
-            static readonly FieldInfo fiId = ReflectionTools.GetFieldInfo((Entity i) => i.id);
-
             static readonly MethodInfo miCached = ReflectionTools.GetMethodInfo((IRetriever r) => r.Complete<TypeEntity>(null, null!)).GetGenericMethodDefinition();
             static readonly MethodInfo miRequest = ReflectionTools.GetMethodInfo((IRetriever r) => r.Request<TypeEntity>(null)).GetGenericMethodDefinition();
             static readonly MethodInfo miRequestIBA = ReflectionTools.GetMethodInfo((IRetriever r) => r.RequestIBA<TypeEntity>(null, null)).GetGenericMethodDefinition();
@@ -187,9 +186,9 @@ namespace Signum.Engine.Linq
                 return Expression.Lambda<Func<IProjectionRow, T>>(body, row);
             }
 
-            Expression NullifyColumn(Expression exp)
+            static Expression NullifyColumn(Expression exp)
             {
-                if (!(exp is ColumnExpression ce))
+                if (exp is not ColumnExpression ce)
                     return exp;
 
                 if (ce.Type.IsNullable() || ce.Type.IsClass)
@@ -200,26 +199,44 @@ namespace Signum.Engine.Linq
 
             protected override Expression VisitUnary(UnaryExpression u)
             {
-                if (u.NodeType == ExpressionType.Convert && u.Operand is ColumnExpression && DiffersInNullability(u.Type, u.Operand.Type))
-                {
-                    ColumnExpression column = (ColumnExpression)u.Operand;
-                    return scope.GetColumnExpression(row, column.Alias, column.Name, u.Type);
-                }
+                var col = GetInnerColumn(u);
+
+                if(col != null)
+                    return scope.GetColumnExpression(row, col.Alias, col.Name!, u.Type);
 
                 return base.VisitUnary(u);
             }
 
-
-            bool DiffersInNullability(Type a, Type b)
+            public ColumnExpression? GetInnerColumn(UnaryExpression u)
             {
-                return
-                    a.IsValueType && a.Nullify() == b ||
-                    b.IsValueType && b.Nullify() == a;
+                if(u.NodeType == ExpressionType.Convert && DiffersInNullability(u.Type, u.Operand.Type))
+                {
+                    if (u.Operand is ColumnExpression c)
+                        return c;
+
+                    if (u.Operand is UnaryExpression u2)
+                        return GetInnerColumn(u2);
+                }
+
+                return null;
+            }
+
+            static bool DiffersInNullability(Type a, Type b)
+            {
+                if (a.IsValueType && a.Nullify() == b ||
+                    b.IsValueType && b.Nullify() == a)
+                    return true;
+
+                if (a == typeof(Date) && b == typeof(DateTime) ||
+                    a == typeof(DateTime) && b == typeof(Date))
+                    return true;
+
+                return false;
             }
 
             protected internal override Expression VisitColumn(ColumnExpression column)
             {
-                return scope.GetColumnExpression(row, column.Alias, column.Name, column.Type);
+                return scope.GetColumnExpression(row, column.Alias, column.Name!, column.Type);
             }
 
             protected internal override Expression VisitChildProjection(ChildProjectionExpression child)
@@ -229,7 +246,7 @@ namespace Signum.Engine.Linq
                 if (outer != child.OuterKey)
                     child = new ChildProjectionExpression(child.Projection, outer, child.IsLazyMList, child.Type, child.Token);
 
-                return scope.LookupEager(row, child);
+                return Scope.LookupEager(row, child);
             }
 
             protected Expression VisitMListChildProjection(ChildProjectionExpression child, MemberExpression field)
@@ -239,7 +256,7 @@ namespace Signum.Engine.Linq
                 if (outer != child.OuterKey)
                     child = new ChildProjectionExpression(child.Projection, outer, child.IsLazyMList, child.Type, child.Token);
 
-                return scope.LookupMList(row, child, field);
+                return Scope.LookupMList(row, child, field);
             }
 
             protected internal override Expression VisitProjection(ProjectionExpression proj)
@@ -252,66 +269,64 @@ namespace Signum.Engine.Linq
                 throw new InvalidOperationException("Impossible to retrieve MixinEntity {0} without their main entity".FormatWith(me.Type.Name));
             }
 
-            protected internal override Expression VisitEntity(EntityExpression fieldInit)
+            protected internal override Expression VisitEntity(EntityExpression entityExpr)
             {
-                Expression id = Visit(NullifyColumn(fieldInit.ExternalId));
+                Expression id = Visit(NullifyColumn(entityExpr.ExternalId));
 
-                if (fieldInit.TableAlias == null)
-                    return Expression.Call(retriever, miRequest.MakeGenericMethod(fieldInit.Type), id);
+                if (entityExpr.TableAlias == null)
+                    return Expression.Call(retriever, miRequest.MakeGenericMethod(entityExpr.Type), id);
 
-                ParameterExpression e = Expression.Parameter(fieldInit.Type, fieldInit.Type.Name.ToLower().Substring(0, 1));
+                ParameterExpression e = Expression.Parameter(entityExpr.Type, entityExpr.Type.Name.ToLower().Substring(0, 1));
 
                 var bindings =
-                    fieldInit.Bindings
+                    entityExpr.Bindings!
                     .Where(a => !ReflectionTools.FieldEquals(EntityExpression.IdField, a.FieldInfo))
                     .Select(b =>
                         {
                             var field = Expression.Field(e, b.FieldInfo);
 
-                            var value = b.Binding is ChildProjectionExpression ?
-                                VisitMListChildProjection((ChildProjectionExpression)b.Binding, field) :
+                            var value = b.Binding is ChildProjectionExpression cpe ?
+                                VisitMListChildProjection(cpe, field) :
                                 Convert(Visit(b.Binding), b.FieldInfo.FieldType);
 
                             return (Expression)Expression.Assign(field, value);
                         }).ToList();
 
-                if (fieldInit.Mixins != null)
+                if (entityExpr.Mixins != null)
                 {
-                    var blocks = fieldInit.Mixins.Select(m => AssignMixin(e, m)).ToList();
+                    var blocks = entityExpr.Mixins.Select(m => AssignMixin(e, m)).ToList();
 
                     bindings.AddRange(blocks);
                 }
 
-                LambdaExpression lambda = Expression.Lambda(typeof(Action<>).MakeGenericType(fieldInit.Type), Expression.Block(bindings), e);
+                LambdaExpression lambda = Expression.Lambda(typeof(Action<>).MakeGenericType(entityExpr.Type), Expression.Block(bindings), e);
 
-                return Expression.Call(retriever, miCached.MakeGenericMethod(fieldInit.Type), id.Nullify(), lambda);
+                return Expression.Call(retriever, miCached.MakeGenericMethod(entityExpr.Type), id.Nullify(), lambda);
             }
 
             BlockExpression AssignMixin(ParameterExpression e, MixinEntityExpression m)
             {
                 var mixParam = Expression.Parameter(m.Type);
 
-                var mixAssign = Expression.Assign(mixParam, Expression.Call(e, MixinDeclarations.miMixin.MakeGenericMethod(m.Type)));
-
-                var mixBindings = m.Bindings.Select(b =>
+                var mixBindings = new List<Expression>
+                {
+                    Expression.Assign(mixParam, Expression.Call(e, MixinDeclarations.miMixin.MakeGenericMethod(m.Type))),
+                    Expression.Call(retriever, miModifiablePostRetrieving.MakeGenericMethod(m.Type), mixParam)
+                };
+                mixBindings.AddRange(m.Bindings.Select(b =>
                 {
                     var field = Expression.Field(mixParam, b.FieldInfo);
 
-                    var value = b.Binding is ChildProjectionExpression ?
-                        VisitMListChildProjection((ChildProjectionExpression)b.Binding, field) :
+                    var value = b.Binding is ChildProjectionExpression cpe ? VisitMListChildProjection(cpe, field) :
                         Convert(Visit(b.Binding), b.FieldInfo.FieldType);
 
                     return (Expression)Expression.Assign(field, value);
-                }).ToList();
-
-                mixBindings.Insert(0, mixAssign);
-
-                mixBindings.Add(Expression.Call(retriever, miModifiablePostRetrieving.MakeGenericMethod(m.Type), mixParam));
+                }));
 
                 return Expression.Block(new[] { mixParam }, mixBindings);
             }
 
-            private Expression Convert(Expression expression, Type type)
+            private static Expression Convert(Expression expression, Type type)
             {
                 if (expression.Type == type)
                     return expression;
@@ -323,31 +338,31 @@ namespace Signum.Engine.Linq
             {
                 var embeddedParam = Expression.Parameter(eee.Type);
 
-                var embeddedAssign = Expression.Assign(embeddedParam, Expression.New(eee.Type));
-
-                var embeddedBindings =
-                       eee.Bindings.Select(b =>
-                       {
-                           var field = Expression.Field(embeddedParam, b.FieldInfo);
-
-                           var value = b.Binding is ChildProjectionExpression ?
-                               VisitMListChildProjection((ChildProjectionExpression)b.Binding, field) :
-                               Convert(Visit(b.Binding), b.FieldInfo.FieldType);
-
-                           return Expression.Assign(field, value);
-                       }).ToList<Expression>();
-
-                embeddedBindings.Insert(0, embeddedAssign);
+                var embeddedBindings = new List<Expression>
+                {
+                    Expression.Assign(embeddedParam, Expression.New(eee.Type))
+                };
 
                 if (typeof(EmbeddedEntity).IsAssignableFrom(eee.Type))
-                {
                     embeddedBindings.Add(Expression.Call(retriever, miModifiablePostRetrieving.MakeGenericMethod(eee.Type), embeddedParam));
-                }
-                else
+
+                embeddedBindings.AddRange(eee.Bindings.Select(b =>
                 {
-                    embeddedBindings.Add(embeddedParam);
+                    var field = Expression.Field(embeddedParam, b.FieldInfo);
+
+                    var value = b.Binding is ChildProjectionExpression cpe ? VisitMListChildProjection(cpe, field) :
+                        Convert(Visit(b.Binding), b.FieldInfo.FieldType);
+
+                    return Expression.Assign(field, value);
+                }));
+
+                if (eee.Mixins != null)
+                {
+                    var blocks = eee.Mixins.Select(m => AssignMixin(embeddedParam, m)).ToList();
+                    embeddedBindings.AddRange(blocks);
                 }
 
+                embeddedBindings.Add(embeddedParam);
                 var block = Expression.Block(eee.Type, new[] { embeddedParam }, embeddedBindings);
 
                 return Expression.Condition(Expression.Equal(Visit(eee.HasValue.Nullify()), Expression.Constant(true, typeof(bool?))),
@@ -425,9 +440,9 @@ namespace Signum.Engine.Linq
 
                 Expression nothing = Expression.Constant(null, lite.Type);
                 Expression liteConstructor;
-                if (typeId is TypeEntityExpression)
+                if (typeId is TypeEntityExpression tee)
                 {
-                    Type type = ((TypeEntityExpression)typeId).TypeValue;
+                    Type type = tee.TypeValue;
 
                     liteConstructor = Expression.Condition(Expression.NotEqual(id, NullId),
                         Expression.Convert(Lite.NewExpression(type, id, toStringOrNull), lite.Type),
@@ -481,31 +496,20 @@ namespace Signum.Engine.Linq
 
                 var bindings = new List<MemberAssignment>
                 {
-                    Expression.Bind(type.GetProperty("RowId"), Visit(mle.RowId.UnNullify())),
-                    Expression.Bind(type.GetProperty("Parent"), Visit(mle.Parent)),
+                    Expression.Bind(type.GetProperty("RowId")!, Visit(mle.RowId.UnNullify())),
+                    Expression.Bind(type.GetProperty("Parent")!, Visit(mle.Parent)),
                 };
 
                 if (mle.Order != null)
-                    bindings.Add(Expression.Bind(type.GetProperty("Order"), Visit(mle.Order)));
+                    bindings.Add(Expression.Bind(type.GetProperty("Order")!, Visit(mle.Order)));
 
-                bindings.Add(Expression.Bind(type.GetProperty("Element"), Visit(mle.Element)));
+                bindings.Add(Expression.Bind(type.GetProperty("Element")!, Visit(mle.Element)));
 
                 var init = Expression.MemberInit(Expression.New(type), bindings);
 
                 return Expression.Condition(SmartEqualizer.NotEqualNullable(Visit(mle.RowId.Nullify()), NullId),
                     init,
                     Expression.Constant(null, init.Type));
-            }
-
-            private Type? ConstantType(Expression typeId)
-            {
-                if (typeId.NodeType == ExpressionType.Convert)
-                    typeId = ((UnaryExpression)typeId).Operand;
-
-                if (typeId.NodeType == ExpressionType.Constant)
-                    return (Type)((ConstantExpression)typeId).Value;
-
-                return null;
             }
 
             protected internal override Expression VisitSqlConstant(SqlConstantExpression sce)
@@ -546,12 +550,39 @@ namespace Signum.Engine.Linq
             {
                 var result = this.Visit(toDayOfWeek.Expression);
 
-                return Expression.Call(ToDayOfWeekExpression.miToDayOfWeek, result, Expression.Constant(ToDayOfWeekExpression.DateFirst.Value.Item1, typeof(byte)));
+                if (Schema.Current.Settings.IsPostgres)
+                {
+                    return Expression.Call(ToDayOfWeekExpression.miToDayOfWeekPostgres, result);
+                }
+                else
+                {
+                    var dateFirst = ((SqlServerConnector)Connector.Current).DateFirst;
+                    return Expression.Call(ToDayOfWeekExpression.miToDayOfWeekSql, result, Expression.Constant(dateFirst, typeof(byte)));
+                }
+            }
+
+            static MethodInfo miToInterval = ReflectionTools.GetMethodInfo(() => ToInterval<int>(new NpgsqlTypes.NpgsqlRange<int>())).GetGenericMethodDefinition();
+            static NullableInterval<T> ToInterval<T>(NpgsqlTypes.NpgsqlRange<T> range) where T : struct, IComparable<T>, IEquatable<T>
+                => new NullableInterval<T>(
+                    range.LowerBoundInfinite ? null : range.LowerBound,
+                    range.UpperBoundInfinite ? null : range.UpperBound);
+
+            protected internal override Expression VisitInterval(IntervalExpression interval)
+            {
+                var intervalType = interval.Type.GetGenericArguments()[0];
+                if (Schema.Current.Settings.IsPostgres)
+                {
+                    return Expression.Call(miToInterval.MakeGenericMethod(intervalType), Visit(interval.PostgresRange!));
+                }
+                else
+                {
+                    return Expression.New(typeof(NullableInterval<>).MakeGenericType(intervalType).GetConstructor(new[] { intervalType, intervalType })!, Visit(interval.Min!), Visit(interval.Max!));
+                }
             }
 
             protected override Expression VisitNew(NewExpression node)
             {
-                var expressions =  this.Visit(node.Arguments);
+                var expressions = this.Visit(node.Arguments);
 
                 if (node.Members != null)
                 {
@@ -561,7 +592,7 @@ namespace Signum.Engine.Linq
                         var e = expressions[i];
                         if (m is PropertyInfo pi && !pi.PropertyType.IsAssignableFrom(e.Type))
                         {
-                            throw  new InvalidOperationException(
+                            throw new InvalidOperationException(
                                 $"Impossible to assign a '{e.Type.TypeName()}' to the member '{m.Name}' of type '{pi.PropertyType.TypeName()}'." +
                                 (e.Type.IsInstantiationOf(typeof(IEnumerable<>)) ? "\nConsider adding '.ToList()' at the end of your sub-query" : null)
                             );
@@ -569,7 +600,7 @@ namespace Signum.Engine.Linq
                     }
                 }
 
-                    return (Expression) node.Update(expressions);
+                return (Expression)node.Update(expressions);
             }
         }
     }
@@ -601,7 +632,7 @@ namespace Signum.Engine.Linq
         static readonly MethodInfo miLookupRequest = ReflectionTools.GetMethodInfo((IProjectionRow row) => row.LookupRequest<int, double>(null!, 0, null!)).GetGenericMethodDefinition();
         static readonly MethodInfo miLookup = ReflectionTools.GetMethodInfo((IProjectionRow row) => row.Lookup<int, double>(null!, 0)).GetGenericMethodDefinition();
 
-        public Expression LookupEager(Expression row, ChildProjectionExpression cProj)
+        public static Expression LookupEager(Expression row, ChildProjectionExpression cProj)
         {
             if (cProj.IsLazyMList)
                 throw new InvalidOperationException("IsLazyMList not expected at this stage");
@@ -618,7 +649,7 @@ namespace Signum.Engine.Linq
             return call;
         }
 
-        public Expression LookupMList(Expression row, ChildProjectionExpression cProj, MemberExpression field)
+        public static Expression LookupMList(Expression row, ChildProjectionExpression cProj, MemberExpression field)
         {
             if (!cProj.IsLazyMList)
                 throw new InvalidOperationException("Not IsLazyMList not expected at this stage");

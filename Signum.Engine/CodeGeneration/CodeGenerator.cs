@@ -36,14 +36,9 @@ namespace Signum.Engine.CodeGeneration
             }
         }
 
-        public static void WindowsFromEntites()
-        {
-
-        }
-
         internal static void GetSolutionInfo(out string solutionFolder, out string solutionName)
         {
-            var m = Regex.Match(Environment.CurrentDirectory, @"(?<solutionFolder>.*)\\(?<solutionName>.*).Load\\bin\\(Debug|Release)", RegexOptions.ExplicitCapture);
+            var m = Regex.Match(Environment.CurrentDirectory, @"(?<solutionFolder>.*)\\(?<solutionName>.*).Terminal\\bin\\(Debug|Release)", RegexOptions.ExplicitCapture);
 
             if (!m.Success)
                 throw new InvalidOperationException("Unable to GetSolutionInfo from non-standart path " + Environment.CurrentDirectory + ". Override GetSolutionInfo");
@@ -97,7 +92,13 @@ namespace Signum.Engine.CodeGeneration
                 }
             }
 
-            return name?.Trim('.');
+            if (name == null)
+                return null;
+
+            if (name.Contains("."))
+                return name.Before(".").DefaultToNull() ?? name.After(".");
+
+            return name;
         }
     }
 

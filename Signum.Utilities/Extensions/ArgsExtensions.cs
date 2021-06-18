@@ -15,7 +15,6 @@ namespace Signum.Utilities
             return args!.SmartConvertTo<T>().SingleEx(() => "{0} in the argument list".FormatWith(typeof(T))); ;
         }
 
-        [return: MaybeNull]
         public static T? TryGetArgC<T>(this IEnumerable<object?>? args) where T : class
         {
             return args?.SmartConvertTo<T?>().SingleOrDefaultEx(() => "There are more than one {0} in the argument list".FormatWith(typeof(T)));
@@ -42,24 +41,49 @@ namespace Signum.Utilities
                     yield return t;
                 else if (obj is string s && typeof(T).IsEnum && Enum.IsDefined(typeof(T), s))
                     yield return (T)Enum.Parse(typeof(T), s);
-                else if(obj is IComparable && ReflectionTools.IsNumber(obj.GetType()) && ReflectionTools.IsNumber(typeof(T)))
-                {
-                    if (ReflectionTools.IsDecimalNumber(obj.GetType()) &&
-                        !ReflectionTools.IsDecimalNumber(typeof(T)))
-                        throw new InvalidOperationException($"Converting {obj} ({obj.GetType().TypeName()}) to {typeof(T).GetType().TypeName()} would lose precision");
-
+                else if (obj is IComparable && ReflectionTools.IsNumber(obj.GetType()) && ReflectionTools.IsNumber(typeof(T)))
                     yield return ReflectionTools.ChangeType<T>(obj);
-                }
+                else if (obj is IComparable && ReflectionTools.IsDate(obj.GetType()) && ReflectionTools.IsDate(typeof(T)))
+                    yield return ReflectionTools.ChangeType<T>(obj);
                 else if (obj is List<object> list)
-                    yield return (T)giConvertListTo.GetInvoker(typeof(T).ElementType()!)(list);
+                {
+                    var type = typeof(T).ElementType();
+                    if (type != null)
+                    {
+                        if (typeof(T).IsInstantiationOf(typeof(List<>)))
+                        {
+                            var converted = (T)giConvertToList.GetInvoker(type)(list);
+                            if (((IList)converted).Count == list.Count)
+                                yield return converted;
+                        }
+                        else if (typeof(T).IsArray)
+                        {
+                            var converted = (T)(object)giConvertToArray.GetInvoker(type)(list);
+                            if (((IList)converted).Count == list.Count)
+                                yield return converted;
+                        }
+                        else
+                            throw new InvalidOperationException($"Impossible to convert to {typeof(T)}");
+                    }
+
+                }
             }
         }
 
-        static readonly GenericInvoker<Func<List<object>,IList>> giConvertListTo = new GenericInvoker<Func<List<object>, IList>>(list => ConvertListTo<int>(list));
+   
 
-        static List<S> ConvertListTo<S>(List<object> list)
+        static readonly GenericInvoker<Func<List<object>, IList>> giConvertToList = new GenericInvoker<Func<List<object>, IList>>(list => ConvertToList<int>(list));
+
+        static List<S> ConvertToList<S>(List<object> list)
         {
-            return list.Cast<S>().ToList();
+            return SmartConvertTo<S>(list).ToList();
+        }
+
+        static readonly GenericInvoker<Func<List<object>, Array>> giConvertToArray = new GenericInvoker<Func<List<object>, Array>>(list => ConvertToArray<int>(list));
+
+        static S[] ConvertToArray<S>(List<object> list)
+        {
+            return SmartConvertTo<S>(list).ToArray();
         }
     }
 }

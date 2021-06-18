@@ -12,13 +12,17 @@ export type MessageModalStyle = "success" | "info" | "warning" | "error";
 
 export type MessageModalIcon = "info" | "question" | "warning" | "error" | "success";
 
-export type MessageModalButtons = "ok" | "ok_cancel" | "yes_no" | "yes_no_cancel";
+export type MessageModalButtons = "ok" | "cancel" | "ok_cancel" | "yes_no" | "yes_cancel" | "yes_no_cancel";
 
 export type MessageModalResult = "ok" | "cancel" | "yes" | "no";
 
+interface MessageModalContext {
+  handleButtonClicked(m: MessageModalResult) : void;
+}
+
 interface MessageModalProps extends IModalProps<MessageModalResult | undefined> {
   title: React.ReactChild;
-  message: React.ReactChild;
+  message: React.ReactChild | ((ctx: MessageModalContext) => React.ReactChild);
   style?: MessageModalStyle;
   buttons: MessageModalButtons;
   icon?: MessageModalIcon;
@@ -55,6 +59,14 @@ export default function MessageModal(p: MessageModalProps) {
             name="accept">
             {JavascriptMessage.ok.niceToString()}
           </button>);
+      case "cancel":
+        return (
+          <button
+            className="btn btn-secondary sf-close-button sf-button"
+            onClick={() => handleButtonClicked("cancel")}
+            name="cancel">
+            {JavascriptMessage.cancel.niceToString()}
+          </button>);
       case "ok_cancel":
         return (
           <div className="btn-toolbar">
@@ -85,6 +97,22 @@ export default function MessageModal(p: MessageModalProps) {
               onClick={() => handleButtonClicked("no")}
               name="no">
               {BooleanEnum.niceToString("False")}
+            </button>
+          </div>);
+      case "yes_no":
+        return (
+          <div className="btn-toolbar">
+            <button
+              className="btn btn-primary sf-close-button sf-yes-button"
+              onClick={() => handleButtonClicked("yes")}
+              name="yes">
+              {BooleanEnum.niceToString("True")}
+            </button>
+            <button
+              className="btn btn-secondary sf-close-button sf-cancel-button"
+              onClick={() => handleButtonClicked("cancel")}
+              name="cancel">
+              {JavascriptMessage.cancel.niceToString()}
             </button>
           </div>);
       case "yes_no_cancel":
@@ -161,7 +189,11 @@ export default function MessageModal(p: MessageModalProps) {
         {renderTitle()}
       </div>
       <div className="modal-body">
-        {renderText(p.message, p.style)}
+        {
+          typeof p.message == "string" ? p.message.split("\n").map((line, i) => <p key={i} className={dialogTextClass(p.style)}>{line}</p>) :
+            typeof p.message == "function" ? p.message({ handleButtonClicked }) :
+              p.message
+        }
       </div>
       <div className="modal-footer">
         {renderButtons(p.buttons)}
@@ -184,7 +216,7 @@ MessageModal.show = (options: MessageModalProps): Promise<MessageModalResult | u
   );
 }
 
-MessageModal.showError = (message: string, title?: string): Promise<undefined> => {
+MessageModal.showError = (message: React.ReactChild, title?: string): Promise<undefined> => {
   return MessageModal.show({ buttons: "ok", icon: "error", style: "error", title: title ?? JavascriptMessage.error.niceToString(), message: message })
     .then(() => undefined);
 }
@@ -221,13 +253,3 @@ function dialogTextClass(style?: MessageModalStyle) {
   //        return "text-primary";
   //}
 }
-
-
-function renderText(message: React.ReactChild | null | undefined, style?: MessageModalStyle): React.ReactFragment | null | undefined {
-  if (typeof message == "string")
-    return message.split("\n").map((p, i) => <p key={i} className={dialogTextClass(style)}>{p}</p>);
-
-  return message;
-}
-
-

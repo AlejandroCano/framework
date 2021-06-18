@@ -6,6 +6,7 @@ using Signum.Utilities;
 using Signum.Engine.Maps;
 using Signum.Utilities.DataStructures;
 using System.Collections.ObjectModel;
+using System.Collections.Immutable;
 
 namespace Signum.Engine.Linq
 {
@@ -36,12 +37,13 @@ namespace Signum.Engine.Linq
                 return base.VisitLiteReference(lite);
 
             var id = lite.Reference is ImplementedByAllExpression ||
-                lite.Reference is ImplementedByExpression && ((ImplementedByExpression)lite.Reference).Implementations.Select(imp=>imp.Value.ExternalId.ValueType.Nullify()).Distinct().Count() > 1 ?
+                lite.Reference is ImplementedByExpression ib && ib.Implementations.Select(imp=>imp.Value.ExternalId.ValueType.Nullify()).Distinct().Count() > 1 ?
                 (Expression)binder.GetIdString(lite.Reference) :
                 (Expression)binder.GetId(lite.Reference);
 
             var typeId = binder.GetEntityType(lite.Reference);
             var toStr = LiteToString(lite, typeId);
+            //var toStr2 = Visit(toStr); //AdditionalBinding in embedded requires it, but makes problems in many other lites in Nominator
 
             return new LiteValueExpression(lite.Type, typeId, id, toStr);
         }
@@ -82,7 +84,7 @@ namespace Signum.Engine.Linq
             return binder.BindMethodCall(Expression.Call(lite.Reference, EntityExpression.ToStringMethod));
         }
 
-        private bool IsCacheable(Expression newTypeId)
+        private static bool IsCacheable(Expression newTypeId)
         {
 
             if (newTypeId is TypeEntityExpression tfie)
@@ -108,7 +110,7 @@ namespace Signum.Engine.Linq
 
             var bindings = VisitBindings(ee.Bindings!);
 
-            var mixins = Visit(ee.Mixins, VisitMixinEntity);
+            var mixins = Visit(ee.Mixins!, VisitMixinEntity);
 
             var id = (PrimaryKeyExpression)Visit(ee.ExternalId);
 
@@ -135,11 +137,12 @@ namespace Signum.Engine.Linq
         protected internal override Expression VisitEmbeddedEntity(EmbeddedEntityExpression eee)
         {
             var bindings = VisitBindings(eee.Bindings);
+            var mixins = eee.Mixins == null ? null : Visit(eee.Mixins, VisitMixinEntity);
             var hasValue = Visit(eee.HasValue);
 
-            if (eee.Bindings != bindings || eee.HasValue != hasValue)
+            if (eee.Bindings != bindings || eee.HasValue != hasValue || eee.EntityContext != null)
             {
-                return new EmbeddedEntityExpression(eee.Type, hasValue, bindings, eee.FieldEmbedded, eee.ViewTable);
+                return new EmbeddedEntityExpression(eee.Type, hasValue, bindings, mixins, eee.FieldEmbedded, eee.ViewTable, null);
             }
             return eee;
         }
@@ -148,14 +151,14 @@ namespace Signum.Engine.Linq
         {
             var bindings = VisitBindings(me.Bindings);
 
-            if (me.Bindings != bindings)
+            if (me.Bindings != bindings || me.EntityContext != null)
             {
-                return new MixinEntityExpression(me.Type, bindings, me.MainEntityAlias, me.FieldMixin);
+                return new MixinEntityExpression(me.Type, bindings, me.MainEntityAlias, me.FieldMixin, null);
             }
             return me;
         }
 
-        private bool IsCached(Type type)
+        private static bool IsCached(Type type)
         {
             var cc = Schema.Current.CacheController(type);
             if (cc != null && cc.Enabled)
@@ -179,7 +182,7 @@ namespace Signum.Engine.Linq
         {
             var exp = binder.BindAdditionalField(afe, entityCompleter: true);
 
-            var newEx = this.Visit(exp);
+            var newEx = this.Visit(exp)!;
 
             if (newEx is ProjectionExpression newProj && newProj.Projector.Type.IsInstantiationOf(typeof(MList<>.RowIdElement)))
                 return new MListProjectionExpression(afe.Type, newProj);
