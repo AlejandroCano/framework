@@ -54,7 +54,7 @@ namespace Signum.Upgrade.Upgrades
 
             uctx.ChangeCodeFile($@"Southwind.React\Startup.cs", file =>
             {
-                file.Replace("AddNewtonsoftJson", "AddJsonOptions");
+                file.Replace("AddNewtonsoftJsonAddNewtonsoftJson", "AddJsonOptions");
                 file.Replace(
                     "public bool Match(HttpContext httpContext, IRouter route, ", 
                     "public bool Match(HttpContext? httpContext, IRouter? route, ");
