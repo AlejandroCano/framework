@@ -392,17 +392,17 @@ once("arrayExtensions", () => {
         return obj;
     };
 
-    Array.prototype.flatMap = function (selector: (element: any) => any[]): any {
+    //Array.prototype.flatMap = function (selector: (element: any) => any[]): any {
 
-        var array = [];
+    //    var array = [];
 
-        (<Array<any>>this).forEach(item =>
-            selector(item).forEach(item2 =>
-                array.push(item2)
-            ));
+    //    (<Array<any>>this).forEach(item =>
+    //        selector(item).forEach(item2 =>
+    //            array.push(item2)
+    //        ));
 
-        return array;
-    };
+    //    return array;
+    //};
 
     Array.prototype.max = function () {
         return Math.max.apply(null, this);
