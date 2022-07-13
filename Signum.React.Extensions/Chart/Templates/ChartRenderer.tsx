@@ -69,7 +69,12 @@ export default function ChartRenderer(p: ChartRendererProps) {
 
 export function handleDrillDown(r: ChartRow, e: React.MouseEvent | MouseEvent, cr: ChartRequestModel, onReload?: () => void) {
 
-  e.stopPropagation();
+
+  if (typeof e.stopPropagation === "function") {
+    e.stopPropagation();
+  }
+
+
   var newWindow = e.ctrlKey || e.button == 1;
 
   if (r.entity) {
