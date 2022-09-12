@@ -15,7 +15,7 @@ import * as Navigator from './Navigator';
 import * as ContexualItems from './SearchControl/ContextualItems';
 import { ButtonBarManager } from './Frames/ButtonBar';
 import { getEntityOperationButtons, defaultOnClick, andClose, andNew, OperationButton } from './Operations/EntityOperations';
-import { getConstructFromManyContextualItems, getEntityOperationsContextualItems, defaultContextualClick, OperationMenuItem } from './Operations/ContextualOperations';
+import { getConstructFromManyContextualItems, getEntityOperationsContextualItems, defaultContextualOperationClick, OperationMenuItem } from './Operations/ContextualOperations';
 import { ContextualItemsContext, MenuItemBlock } from './SearchControl/ContextualItems';
 import { BsColor, KeyCodes } from "./Components/Basic";
 import { IconProp } from "@fortawesome/fontawesome-svg-core";
@@ -25,7 +25,7 @@ import { FunctionalAdapter } from "./Modals";
 import { SearchControlLoaded } from "./Search";
 import { isActive, isFilterGroupOption, isFilterGroupOptionParsed } from "./FindOptions";
 import { CellFormatter, CellFormatterContext } from "./Finder";
-import { CellOperationButton } from "./Operations/CellOperation";
+import { CellOperationButton, defaultCellOperationClick } from "./Operations/CellOperation";
 
 export namespace Options {
   export function maybeReadonly(ti: TypeInfo) {
@@ -61,7 +61,7 @@ export function start() {
     isApplicable: c => {
       return c.type.name == "CellOperationDTO";
     },
-    formatter: c => new CellFormatter((dto: CellOperationDto, ctx) => dto ? <CellOperationButton icoc={CellOperationContext.fromCellContext(ctx, dto)} />
+    formatter: c => new CellFormatter((dto: CellOperationDto, ctx) => dto ? <CellOperationButton coc={new CellOperationContext(ctx, dto)} />
     : undefined)
 
   });
@@ -239,7 +239,11 @@ export class ContextualOperationContext<T extends Entity> {
 
 
   defaultContextualClick(...args: any[]): Promise<void> {
-    return defaultContextualClick(this, ...args);
+    return defaultContextualOperationClick(this, ...args);
+  }
+
+  defaultClick(...args: any[]): Promise<void> {
+    return defaultContextualOperationClick(this, ...args);
   }
 
   constructor(operationInfo: OperationInfo, context: ContextualItemsContext<T>) {
@@ -282,7 +286,8 @@ export class ContextualOperationContext<T extends Entity> {
       if (eos.isVisible != null) //If you override isVisible in EntityOperationsettings you have to override in ContextualOperationSettings too
         return false;
 
-      if (eos.onClick != null && cos?.onClick == null) //also for isClick, if you override in EntityOperationsettings you have to override in ContextualOperationSettings
+      //for onClick, if you have onClick in EntityOperationsettings you have to add there also commonOnClick or add specific onClick in ContextualOperationSettings
+      if (eos.onClick != null && eos.commonOnClick == null && cos?.onClick == null) 
         return false;
     }
 
@@ -307,12 +312,11 @@ export class ContextualOperationContext<T extends Entity> {
  */
 export class CellOperationSettings extends OperationSettings {
   text?: (coc: CellOperationContext) => string;
-  //isVisible?: (coc: CellOperationContext) => boolean;
+  isVisible?: (coc: CellOperationContext) => boolean;
   confirmMessage?: (coc: CellOperationContext) => string | undefined | null;
   onClick?: (coc: CellOperationContext) => Promise<void>;
   hideOnCanExecute?: boolean;
   //showOnReadOnly?: boolean;
-  //order?: number;
   color?: BsColor;
   icon?: IconProp;
   iconColor?: string;
@@ -331,12 +335,11 @@ export class CellOperationSettings extends OperationSettings {
 
 export interface CellOperationOptions {
   text?: (coc: CellOperationContext) => string;
-  //isVisible?: (coc: CellOperationContext) => boolean;
+  isVisible?: (coc: CellOperationContext) => boolean;
   confirmMessage?: (coc: CellOperationContext) => string | undefined | null;
   onClick?: (coc: CellOperationContext) => Promise<void>;
   hideOnCanExecute?: boolean;
   //showOnReadOnly?: boolean;
-  //order?: number;
   color?: BsColor;
   icon?: IconProp;
   iconColor?: string;
@@ -350,11 +353,12 @@ export interface CellOperationOptions {
 export class CellOperationContext {
 
   tag?: string;
-  lite: Lite<Entity>;
-  operationInfo: OperationInfo;
-  settings?: CellOperationSettings;
-//  entityOperationSettings?: EntityOperationSettings<T>;
-  canExecute?: string;
+  readonly lite: Lite<Entity>;
+  readonly operationInfo: OperationInfo;
+  readonly cellContext: CellFormatterContext;
+  readonly canExecute?: string;
+  readonly settings?: CellOperationSettings;
+  readonly entityOperationSettings?: EntityOperationSettings<any>;
   event?: React.MouseEvent<any>;
 
   color?: BsColor;
@@ -367,22 +371,47 @@ export class CellOperationContext {
   onConstructFromSuccess?: (pack: EntityPack<Entity> | undefined) => void;
   onDeleteSuccess?: () => void;
 
-  static fromCellContext(ctx: CellFormatterContext, dto: CellOperationDto) {
-    const result = new CellOperationContext(dto);
-    result.settings = getSettings(dto.operationKey) as CellOperationSettings;
-    result.onExecuteSuccess = (p) => ctx.refresh?.()
-    return result;
-  }
-
-  constructor(co: CellOperationDto) {
+  constructor(ctx: CellFormatterContext, co: CellOperationDto) {
     this.lite = co.lite;
     this.operationInfo = getOperationInfo(co.operationKey, co.lite.EntityType);
+    this.cellContext = ctx;
     this.canExecute = co.canExecute;
+    this.entityOperationSettings = getSettings(co.operationKey) as EntityOperationSettings<Entity>;
+    this.settings = this.entityOperationSettings ? this.entityOperationSettings.cell : getSettings(co.operationKey) as CellOperationSettings;
   }
 
   raiseEntityChanged() {
     return Navigator.raiseEntityChanged(this.lite.EntityType);
   }
+
+  defaultClick(...args: any[]) {
+    return defaultCellOperationClick(this, ...args);
+  }
+
+  isVisibleInCell(): boolean {
+
+    const cos = this.settings;
+    const eos = this.entityOperationSettings;
+
+    const hideOnCanExecute = cos?.hideOnCanExecute ? eos?.hideOnCanExecute : false;
+    if (hideOnCanExecute && this.canExecute)
+      return false;
+
+    if (cos?.isVisible)
+      return cos.isVisible(this);
+
+    if (eos) {
+      if (eos.isVisible != null) //If you override isVisible in EntityOperationsettings you have to override in CellOperationSettings too
+        return false;
+
+      //for onClick, if you have onClick in EntityOperationsettings you have to add there also commonOnClick or add specific onClick in CellOperationSettings
+      if (eos.onClick != null && eos.commonOnClick == null && cos?.onClick == null) 
+        return false;
+    }
+
+    return true;
+  }
+
 }
 
 
@@ -507,8 +536,10 @@ export class EntityOperationContext<T extends Entity> {
 
   click() {
     this.frame.execute(() => {
-      if (this.settings && this.settings.onClick)
+      if (this.settings?.onClick)
         return this.settings.onClick(this);
+      else if (this.settings?.commonOnClick)
+        return this.settings.commonOnClick(this);
       else
         return defaultOnClick(this);
     }).done();
@@ -562,12 +593,14 @@ export class EntityOperationSettings<T extends Entity> extends OperationSettings
 
   contextual?: ContextualOperationSettings<T>;
   contextualFromMany?: ContextualOperationSettings<T>;
+  cell?: CellOperationSettings;
 
   text?: (coc: EntityOperationContext<T>) => string;
   isVisible?: (eoc: EntityOperationContext<T>) => boolean;
   confirmMessage?: (eoc: EntityOperationContext<T>) => string | undefined | null;
   overrideCanExecute?: (ctx: EntityOperationContext<T>) => string | undefined | null;
   onClick?: (eoc: EntityOperationContext<T>) => Promise<void>;
+  commonOnClick?: (oc: EntityOperationContext<T> | ContextualOperationContext<T> | CellOperationContext) => Promise<void>;
   createButton?: (eoc: EntityOperationContext<T>, group?: EntityOperationGroup) => ButtonBarElement[];
   hideOnCanExecute?: boolean;
   showOnReadOnly?: boolean;
@@ -590,17 +623,21 @@ export class EntityOperationSettings<T extends Entity> extends OperationSettings
 
     this.contextual = options.contextual ? new ContextualOperationSettings(operationSymbol as any, options.contextual) : undefined;
     this.contextualFromMany = options.contextualFromMany ? new ContextualOperationSettings(operationSymbol as any, options.contextualFromMany) : undefined;
+    this.cell = options.cell ? new CellOperationSettings(operationSymbol as any, options.cell) : undefined;
   }
 }
 
 export interface EntityOperationOptions<T extends Entity> {
   contextual?: ContextualOperationOptions<T>;
   contextualFromMany?: ContextualOperationOptions<T>;
+  cell?: CellOperationOptions;
+
   text?: (coc: EntityOperationContext<T>) => string;
   isVisible?: (eoc: EntityOperationContext<T>) => boolean;
   overrideCanExecute?: (eoc: EntityOperationContext<T>) => string | undefined | null;
   confirmMessage?: (eoc: EntityOperationContext<T>) => string | undefined | null;
   onClick?: (eoc: EntityOperationContext<T>) => Promise<void>;
+  commonOnClick?: (oc: EntityOperationContext<T> | ContextualOperationContext<T> | CellOperationContext) => Promise<void>;
   createButton?: (eoc: EntityOperationContext<T>, group?: EntityOperationGroup) => ButtonBarElement[];
   hideOnCanExecute?: boolean;
   showOnReadOnly?: boolean;
