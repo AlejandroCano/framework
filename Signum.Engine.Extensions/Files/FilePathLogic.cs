@@ -128,4 +128,12 @@ public static class FilePathLogic
     {
         return fp.FileType.GetAlgorithm().OpenRead(fp);
     }
+
+    public static string GetAsString(this FilePathEntity fp)
+    {
+        using (StreamReader reader = new StreamReader(fp.OpenRead()))
+        {
+           return reader.ReadToEnd();
+        }
+    }
 }
