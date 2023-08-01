@@ -127,6 +127,9 @@ public abstract class QueryToken : IEquatable<QueryToken>
 
     public QueryToken? SubTokenInternal(string key, SubTokensOptions options)
     {
+        if (this is ManualContainerToken mc)
+            return new ManualToken(mc, key, mc.Parent!.Type);
+        
         var result = CachedSubTokensOverride(options).TryGetC(key) ?? OnDynamicEntityExtension(this).SingleOrDefaultEx(a => a.Key == key);
 
         if (result == null)
@@ -210,6 +213,7 @@ public abstract class QueryToken : IEquatable<QueryToken>
                     IsSystemVersioned(onlyType) ? new SystemTimeToken(this, SystemTimeProperty.SystemValidFrom): null,
                     IsSystemVersioned(onlyType) ? new SystemTimeToken(this, SystemTimeProperty.SystemValidTo): null,
                     ((options & SubTokensOptions.CanOperation) != 0) ? new OperationsToken(this) : null,
+                    ((options & SubTokensOptions.CanManual) != 0) ? new QuickLinksToken(this) : null,
                 }
                 .NotNull()
                 .Concat(EntityProperties(onlyType)).ToList().AndHasValue(this);
@@ -364,10 +368,10 @@ public abstract class QueryToken : IEquatable<QueryToken>
     public static List<QueryToken> CollectionProperties(QueryToken parent, SubTokensOptions options)
     {
         if (parent.HasAllOrAny())
-            options &= ~(SubTokensOptions.CanElement | SubTokensOptions.CanToArray | SubTokensOptions.CanOperation | SubTokensOptions.CanAggregate);
+            options &= ~(SubTokensOptions.CanElement | SubTokensOptions.CanToArray | SubTokensOptions.CanOperation | SubTokensOptions.CanAggregate | SubTokensOptions.CanManual);
 
         if (parent.HasToArray() != null)
-            options &= ~(SubTokensOptions.CanAnyAll | SubTokensOptions.CanToArray | SubTokensOptions.CanOperation | SubTokensOptions.CanAggregate);
+            options &= ~(SubTokensOptions.CanAnyAll | SubTokensOptions.CanToArray | SubTokensOptions.CanOperation | SubTokensOptions.CanAggregate | SubTokensOptions.CanManual);
 
         List<QueryToken> tokens = new List<QueryToken>() { new CountToken(parent) };
 
@@ -702,4 +706,13 @@ public enum QueryTokenMessage
     ContainerOfCellOperations,
     [Description("Entity Type")]
     EntityType
+}
+
+[InTypeScript(true), DescriptionOptions(DescriptionOptions.All)]
+public enum ContainerTokenKey
+{
+    [Description("[Operations]")]
+    Operations,
+    [Description("[QuickLinks]")]
+    QuickLinks,
 }

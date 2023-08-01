@@ -31,6 +31,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { UserChartPartHandler } from './View/UserChartPart';
 import type { UserQueryPartHandler } from './View/UserQueryPart';
 import { QueryDescription } from '@framework/FindOptions';
+import { Dic } from '../../Signum.React/Scripts/Globals';
+import { UserAssetModel } from '../UserAssets/UserAssetClient';
 
 export interface PanelPartContentProps<T extends IPartEntity> {
   partEmbedded: PanelPartEmbedded;
@@ -123,7 +125,7 @@ export function start(options: { routes: JSX.Element[] }) {
         ev.preventDefault();
         ev.persist();
         const handler = cdRef.current as UserChartPartHandler;
-          ChartClient.Encoder.chartPathPromise(handler.chartRequest!, toLite(p.userChart!))
+        ChartClient.Encoder.chartPathPromise(handler.chartRequest!, toLite(p.userChart!))
           .then(path => AppContext.pushOrOpenInTab(path, ev));
       },
     customTitleButtons: (c, entity, customDataRef) => {
@@ -256,36 +258,55 @@ export function start(options: { routes: JSX.Element[] }) {
     });
   });
 
-  QuickLinks.registerGlobalQuickLink(ctx => {
+  QuickLinks.registerGlobalQuickLink(entityType => {
     if (!AuthClient.isPermissionAuthorized(DashboardPermission.ViewDashboard))
-      return undefined;
+      return Promise.resolve([]);
 
-    var promise = ctx.widgetContext ?
-      Promise.resolve(ctx.widgetContext.frame.pack.dashboards ?? []) :
-      API.forEntityType(ctx.lite.EntityType);
-
-    return promise.then(das =>
-      das.map(d => new QuickLinks.QuickLinkAction(liteKey(d), () => getToString(d) ?? "", e => {
-        AppContext.pushOrOpenInTab(dashboardUrl(d, ctx.lite), e)
-      }, { icon: "gauge", iconColor: "darkslateblue" })));
+    return API.forEntityType(entityType)
+      .then(das => das.map(d =>
+      ({
+        key: liteKey(d.asset),
+        generator:
+        {
+          factory: ctx => new QuickLinks.QuickLinkAction(e => {
+            AppContext.pushOrOpenInTab(dashboardUrl(d.asset, ctx.lite), e)
+          }, { icon: "gauge", iconColor: "darkslateblue", color: "success" }),
+          options:
+          {
+            text: () => getToString(d.asset),
+            order: 0,
+            hideInAutos: d.hideQuickLink
+          }
+        }
+      })));
   });
 
-  QuickLinks.registerQuickLink(DashboardEntity, ctx => new QuickLinks.QuickLinkAction("preview", () => DashboardMessage.Preview.niceToString(),
-    e => Navigator.API.fetchAndRemember(ctx.lite)
-      .then(db => {
-        if (db.entityType == undefined)
-          AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite), e);
-        else
-          Navigator.API.fetchAndRemember(db.entityType)
-            .then(t => Finder.find({ queryName: t.cleanName }))
-            .then(entity => {
-              if (!entity)
-                return;
+  QuickLinks.registerQuickLink({
+    type: DashboardEntity,
+    key: "preview",
+    generator:
+    {
+      factory: ctx => new QuickLinks.QuickLinkAction(e => Navigator.API.fetchAndRemember(ctx.lite)
+          .then(db => {
+            if (db.entityType == undefined)
+              AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite), e);
+            else
+              Navigator.API.fetchAndRemember(db.entityType)
+                .then(t => Finder.find({ queryName: t.cleanName }))
+                .then(entity => {
+                  if (!entity)
+                    return;
 
-              AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite, entity), e);
-            });
-      }), { group: null, icon: "eye", iconColor: "blue", color: "info" }));
-}
+                  AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite, entity), e);
+                });
+          })),
+        options:
+        {
+          text: () => DashboardMessage.Preview.niceToString(),
+          group: null, icon: "eye", iconColor: "blue", color: "info"
+        }
+      }
+  })};
 
 export function home(): Promise<Lite<DashboardEntity> | null> {
   if (!Navigator.isViewable(DashboardEntity))
@@ -335,7 +356,7 @@ function CreateNewButton(p: { queryKey: string, onClick: (types: TypeInfo[], qd:
 }
 
 export module API {
-  export function forEntityType(type: string): Promise<Lite<DashboardEntity>[]> {
+  export function forEntityType(type: string): Promise<UserAssetModel<DashboardEntity>[]> {
     return ajaxGet({ url: `~/api/dashboard/forEntityType/${type}` });
   }
 

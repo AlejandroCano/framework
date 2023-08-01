@@ -6,7 +6,7 @@ import {
   OperationSymbol, ConstructSymbol_From, ConstructSymbol_FromMany, ConstructSymbol_Simple, ExecuteSymbol, DeleteSymbol, JavascriptMessage, EngineMessage, getToString, PropertyOperation, toLite
 } from './Signum.Entities';
 import { OperationLogEntity } from './Signum.Entities.Basics';
-import { PseudoType, TypeInfo, getTypeInfo, OperationInfo, OperationType, GraphExplorer, tryGetTypeInfo, Type, getTypeName, QueryTokenString } from './Reflection';
+import { PseudoType, TypeInfo, getTypeInfo, OperationInfo, OperationType, GraphExplorer, tryGetTypeInfo, Type, getTypeName, QueryTokenString, getQueryKey } from './Reflection';
 import { TypeContext, EntityFrame, ButtonsContext, IOperationVisible, ButtonBarElement } from './TypeContext';
 import * as AppContext from './AppContext';
 import * as Finder from './Finder';
@@ -47,14 +47,22 @@ export function start() {
 
   AppContext.clearSettingsActions.push(clearOperationSettings);
 
-  QuickLinks.registerGlobalQuickLink(ctx => new QuickLinks.QuickLinkExplore({
-    queryName: OperationLogEntity,
-    filterOptions: [{ token: OperationLogEntity.token(e => e.target), value: ctx.lite}]
-  },
-    {
-      isVisible: getTypeInfo(ctx.lite.EntityType) && getTypeInfo(ctx.lite.EntityType).operations && Finder.isFindable(OperationLogEntity, false),
-      icon: "clock-rotate-left",
-      iconColor: "green",
+  QuickLinks.registerGlobalQuickLink(entityType =>
+    ({
+      key: getQueryKey(OperationLogEntity),
+      generator:
+      {
+        factory: ctx => new QuickLinks.QuickLinkExplore({ queryName: OperationLogEntity,
+          filterOptions: [{ token: OperationLogEntity.token(e => e.target), value: ctx.lite }]
+        }),
+        options: {
+          text: () => OperationLogEntity.nicePluralName(),
+          isVisible: getTypeInfo(entityType) && getTypeInfo(entityType).operations && Finder.isFindable(OperationLogEntity, false),
+          icon: "clock-rotate-left",
+          iconColor: "green",
+          color: "success",
+        }
+      }
     }));
 
   Finder.formatRules.push({
@@ -62,7 +70,7 @@ export function start() {
     isApplicable: c => {
       return c.type.name == "CellOperationDTO";
     },
-    formatter: c => new CellFormatter((dto: CellOperationDto, ctx) => dto ? <CellOperationButton coc={new CellOperationContext(ctx, dto)} /> : undefined, false)
+    formatter: c => new CellFormatter((dto: CellOperationDto, ctx) => dto && dto.lite ? <CellOperationButton coc={new CellOperationContext(ctx, dto)} /> : undefined, false)
 
   });
 

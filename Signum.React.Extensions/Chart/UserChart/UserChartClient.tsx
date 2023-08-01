@@ -14,6 +14,7 @@ import UserChartMenu from './UserChartMenu'
 import * as ChartClient from '../ChartClient'
 import * as UserAssetsClient from '../../UserAssets/UserAssetClient'
 import { ImportRoute } from "@framework/AsyncImport";
+import { UserAssetModel } from '../../UserAssets/UserAssetClient';
 
 export function start(options: { routes: JSX.Element[] }) {
 
@@ -30,37 +31,54 @@ export function start(options: { routes: JSX.Element[] }) {
     return <UserChartMenu chartRequestView={ctx.chartRequestView} />;
   });
 
-  QuickLinks.registerGlobalQuickLink(ctx => {
+  QuickLinks.registerGlobalQuickLink(entityType => {
     if (!AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) || !Navigator.isViewable(UserChartEntity))
-      return undefined;
+      return Promise.resolve([]);
 
-    var promise = ctx.widgetContext ?
-      Promise.resolve(ctx.widgetContext.frame.pack.userCharts ?? []) :
-      API.forEntityType(ctx.lite.EntityType);
-
-    return promise.then(uqs =>
-      uqs.map(uc => new QuickLinks.QuickLinkAction(liteKey(uc), () => getToString(uc) ?? "", e => {
-        window.open(AppContext.toAbsoluteUrl(`~/userChart/${uc.id}/${liteKey(ctx.lite)}`));
-      }, { icon: "chart-bar", iconColor: "darkviolet" })));
+    return API.forEntityType(entityType)
+      .then(ucs => ucs.map(uc =>
+      ({
+        key: liteKey(uc.asset),
+        generator:
+        {
+          factory: ctx => new QuickLinks.QuickLinkAction(e => {
+            window.open(AppContext.toAbsoluteUrl(`~/userChart/${uc.asset.id}/${liteKey(ctx.lite)}`));
+          }),
+          options: {
+            text: () => getToString(uc.asset),
+            hideInAutos: uc.hideQuickLink,
+            icon: "chart-bar", iconColor: "darkviolet"
+          }
+        }
+      })));
   });
 
-  QuickLinks.registerQuickLink(UserChartEntity, ctx => new QuickLinks.QuickLinkAction("preview", () => ChartMessage.Preview.niceToString(),
-    e => {
-      Navigator.API.fetchAndRemember(ctx.lite).then(uc => {
-        if (uc.entityType == undefined)
-          window.open(AppContext.toAbsoluteUrl(`~/userChart/${uc.id}`));
-        else
-          Navigator.API.fetch(uc.entityType)
-            .then(t => Finder.find({ queryName: t.cleanName }))
-            .then(lite => {
-              if (!lite)
-                return;
+  QuickLinks.registerQuickLink({
+    type: UserChartEntity,
+    key: "preview",
+    generator: {
+      factory: ctx => new QuickLinks.QuickLinkAction(
+        e => {
+          Navigator.API.fetchAndRemember(ctx.lite).then(uc => {
+            if (uc.entityType == undefined)
+              window.open(AppContext.toAbsoluteUrl(`~/userChart/${uc.id}`));
+            else
+              Navigator.API.fetch(uc.entityType)
+                .then(t => Finder.find({ queryName: t.cleanName }))
+                .then(lite => {
+                  if (!lite)
+                    return;
 
-              window.open(AppContext.toAbsoluteUrl(`~/userChart/${uc.id}/${liteKey(lite)}`));
-            });
-      });
-    }, { isVisible: AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting), group: null, icon: "eye", iconColor: "blue", color: "info" }));
-
+                  window.open(AppContext.toAbsoluteUrl(`~/userChart/${uc.id}/${liteKey(lite)}`));
+                });
+          })
+        }),
+      options: {
+      text: () => ChartMessage.Preview.niceToString(),
+      isVisible: AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting), group: null, icon: "eye", iconColor: "blue", color: "info"
+      }
+    }
+  });
 
   Navigator.addSettings(new EntitySettings(UserChartEntity, e => import('./UserChart'), { isCreable: "Never" }));
 }
@@ -130,7 +148,7 @@ export module Converter {
 
 
 export module API {
-  export function forEntityType(type: string): Promise<Lite<UserChartEntity>[]> {
+  export function forEntityType(type: string): Promise<UserAssetModel<UserChartEntity>[]> {
     return ajaxGet({ url: "~/api/userChart/forEntityType/" + type });
   }
 
