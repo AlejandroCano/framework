@@ -803,7 +803,7 @@ EXEC DB.dbo.sp_executesql @sql"
         return new[]
         {
             UseDatabase(newSN.Database!.Name),
-            DropFullTextCatallog(newSN.Name),
+            DropFullTextCatallog(newSN.Database!.Name),
             UseDatabase(null),
         }.Combine(Spacing.Simple);
     }
