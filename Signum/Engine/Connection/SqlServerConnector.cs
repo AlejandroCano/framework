@@ -104,7 +104,8 @@ public class SqlServerConnector : Connector
     {
         get
         {
-            var result = (int)this.ExecuteScalar(new SqlPreCommandSimple("SELECT FULLTEXTSERVICEPROPERTY('IsFullTextInstalled')"), CommandType.Text)!;
+            //var result = (int)this.ExecuteScalar(new SqlPreCommandSimple("SELECT FULLTEXTSERVICEPROPERTY('IsFullTextInstalled')"), CommandType.Text)!;
+            var result = (int)this.ExecuteScalar(new SqlPreCommandSimple("SELECT SERVERPROPERTY('IsFullTextInstalled')"), CommandType.Text)!;
             return result == 1;
         }
     }
