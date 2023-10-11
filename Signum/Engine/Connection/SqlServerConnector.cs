@@ -727,22 +727,47 @@ close cur
 deallocate cur";
 
     public static readonly string RemoveAllFullTextCatallogs =
-@"declare @catallogName nvarchar(128)
-DECLARE @sql nvarchar(255)
+@"DECLARE @catallogName NVARCHAR(128)
+DECLARE @sql NVARCHAR(MAX)
 
-declare cur cursor fast_forward for
-select name
-from sys.fulltext_catalogs
-open cur
-    fetch next from cur into @catallogName
-    while @@fetch_status <> -1
-    begin
-        select @sql = 'DROP FULLTEXT CATALOG [' + @catallogName + '];'
-        exec sp_executesql @sql
-        fetch next from cur into @catallogName
-    end
-close cur
-deallocate cur";
+DECLARE cur CURSOR FAST_FORWARD FOR
+SELECT name
+FROM sys.fulltext_catalogs
+
+OPEN cur
+
+FETCH NEXT FROM cur INTO @catallogName
+WHILE @@FETCH_STATUS <> -1
+BEGIN
+    -- Eliminar índices FULLTEXT INDEX asociados al catálogo actual
+    DECLARE @tableName NVARCHAR(128)
+    DECLARE idx_cur CURSOR FAST_FORWARD FOR
+    SELECT OBJECT_NAME(fic.OBJECT_ID)
+    FROM sys.fulltext_indexes fic
+    WHERE fic.fulltext_catalog_id = 
+        (SELECT fulltext_catalog_id FROM sys.fulltext_catalogs WHERE name = @catallogName)
+    
+    OPEN idx_cur
+    FETCH NEXT FROM idx_cur INTO @tableName
+    WHILE @@FETCH_STATUS <> -1
+    BEGIN
+        SET @sql = 'DROP FULLTEXT INDEX ON [' + @tableName + '];'
+        EXEC sp_executesql @sql
+        FETCH NEXT FROM idx_cur INTO @tableName
+    END
+    CLOSE idx_cur
+    DEALLOCATE idx_cur
+
+    -- Eliminar el catálogo en sí
+    SET @sql = 'DROP FULLTEXT CATALOG [' + @catallogName + '];'
+    EXEC sp_executesql @sql
+
+    FETCH NEXT FROM cur INTO @catallogName
+END
+
+CLOSE cur
+DEALLOCATE cur
+";
 
 
     public static SqlPreCommand RemoveAllScript(DatabaseName? databaseName)
