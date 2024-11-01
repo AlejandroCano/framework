@@ -15,6 +15,10 @@ export interface Pop3EmailReceptionServiceEntity extends Reception.EmailReceptio
   host: string;
   username: string | null;
   password: string | null;
+  useOAuth: boolean | null;
+  oAuthClientID: string | null;
+  oAuthTenantID: string | null;
+  oAuthClientSecret: string | null;
   enableSSL: boolean;
   readTimeout: number;
   clientCertificationFiles: Entities.MList<Mailing.ClientCertificationFileEmbedded>;

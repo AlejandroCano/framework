@@ -122,6 +122,18 @@ public class SmtpNetworkDeliveryEmbedded : EmbeddedEntity
     [Ignore, InTypeScript(true)]
     public string? NewPassword { get; set; }
 
+    public bool? UseOAuth { get; set; }
+    
+    [StringLengthValidator(Max = 100)]
+    public string? OAuthClientID { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? OAuthTenantID { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? OAuthClientSecret { get; set; }
+
+
     public bool UseDefaultCredentials { get; set; } = true;
 
     public bool EnableSSL { get; set; }

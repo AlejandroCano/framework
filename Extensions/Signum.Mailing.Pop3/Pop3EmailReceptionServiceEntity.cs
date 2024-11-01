@@ -17,6 +17,17 @@ public class Pop3EmailReceptionServiceEntity : EmailReceptionServiceEntity
     [StringLengthValidator(Max = 100)]
     public string? Password { get; set; }
 
+    public bool? UseOAuth { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? OAuthClientID { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? OAuthTenantID { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? OAuthClientSecret { get; set; }
+
     bool enableSSL;
     public bool EnableSSL
     {
