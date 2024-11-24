@@ -51,6 +51,18 @@ public static class EmailSenderConfigurationLogic
                         smtps.Network.NewPassword = null;
                     }
 
+                    if (smtps?.Network?.OAuthClientAccessTokenNew != null)
+                    {
+                        smtps.Network.OAuthClientAccessToken = EmailSenderConfigurationLogic.EncryptPassword(smtps.Network.OAuthClientAccessTokenNew);
+                        smtps.Network.OAuthClientAccessTokenNew = null;
+                    }
+
+                    if (smtps?.Network?.OAuthClientRefreshTokenNew != null)
+                    {
+                        smtps.Network.OAuthClientRefreshToken = EmailSenderConfigurationLogic.EncryptPassword(smtps.Network.OAuthClientRefreshTokenNew);
+                        smtps.Network.OAuthClientRefreshTokenNew = null;
+                    }
+
                 },
             }.Register();
 

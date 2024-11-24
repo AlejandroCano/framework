@@ -17,8 +17,23 @@ export default function SmtpEmailService(p: { ctx: TypeContext<SmtpEmailServiceE
           <AutoLine ctx={net.subCtx(s => s.useDefaultCredentials)} />
           <AutoLine ctx={net.subCtx(s => s.username)} />
           <PasswordLine ctx={net.subCtx(s => s.password)} />
-		  <PasswordLine ctx={net.subCtx(s => s.newPassword)} />
+		      <PasswordLine ctx={net.subCtx(s => s.newPassword)} />
           <AutoLine ctx={net.subCtx(s => s.enableSSL)} />
+
+          <AutoLine ctx={net.subCtx(s => s.useOAuth)} />
+          <AutoLine ctx={net.subCtx(s => s.oAuthClientID)} />
+          <AutoLine ctx={net.subCtx(s => s.oAuthTenantID)} />
+          <AutoLine ctx={net.subCtx(s => s.oAuthClientSecret)} />
+
+
+          <PasswordLine ctx={net.subCtx(s => s.oAuthClientAccessToken)} />
+		      <PasswordLine ctx={net.subCtx(s => s.oAuthClientAccessTokenNew)} />
+
+          <PasswordLine ctx={net.subCtx(s => s.oAuthClientRefreshToken)} />
+		      <PasswordLine ctx={net.subCtx(s => s.oAuthClientRefreshTokenNew)} />
+
+
+
           <EntityRepeater ctx={net.subCtx(s => s.clientCertificationFiles)} getComponent={cert =>
             <div>
               <AutoLine ctx={cert.subCtx(s => s.certFileType)} />

@@ -34,7 +34,7 @@ public class EmailSenderConfigurationEntity : Entity
     {
         if (sender == DefaultFrom && pi.Name == nameof(DefaultFrom.AzureUserId))
         {
-            if (Service != null )
+            if (Service != null)
                 return Service.ValidateFrom(DefaultFrom, pi);
         }
 
@@ -96,8 +96,8 @@ public class SmtpEmailServiceEntity : EmailServiceEntity
 
     public override SmtpEmailServiceEntity Clone()
     {
-        return new SmtpEmailServiceEntity 
-        { 
+        return new SmtpEmailServiceEntity
+        {
             DeliveryFormat = DeliveryFormat,
             DeliveryMethod = DeliveryMethod,
             Network = Network?.Clone(),
@@ -118,12 +118,12 @@ public class SmtpNetworkDeliveryEmbedded : EmbeddedEntity
 
     [StringLengthValidator(Max = 100), Format(FormatAttribute.Password)]
     public string? Password { get; set; }
-    
+
     [Ignore, InTypeScript(true)]
     public string? NewPassword { get; set; }
 
-    public bool? UseOAuth { get; set; }
-    
+    public OAuth? UseOAuth { get; set; }
+
     [StringLengthValidator(Max = 100)]
     public string? OAuthClientID { get; set; }
 
@@ -133,12 +133,25 @@ public class SmtpNetworkDeliveryEmbedded : EmbeddedEntity
     [StringLengthValidator(Max = 100)]
     public string? OAuthClientSecret { get; set; }
 
+    [StringLengthValidator(Max = 400)]
+    public string? OAuthClientAccessToken { get; set; }
+
+    [Ignore, InTypeScript(true)]
+    public string? OAuthClientAccessTokenNew { get; set; }
+
+
+    [StringLengthValidator(Max = 400)]
+    public string? OAuthClientRefreshToken { get; set; }
+
+    [Ignore, InTypeScript(true)]
+    public string? OAuthClientRefreshTokenNew { get; set; }
+
 
     public bool UseDefaultCredentials { get; set; } = true;
 
     public bool EnableSSL { get; set; }
 
-    
+
     public MList<ClientCertificationFileEmbedded> ClientCertificationFiles { get; set; } = new MList<ClientCertificationFileEmbedded>();
 
     public SmtpNetworkDeliveryEmbedded Clone()
@@ -173,3 +186,9 @@ public enum CertFileType
     SignedFile
 }
 
+public enum OAuth
+{
+    None,
+    Microsoft,
+    Google
+}

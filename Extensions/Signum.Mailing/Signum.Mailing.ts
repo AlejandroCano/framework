@@ -161,6 +161,12 @@ export module EmailSenderConfigurationOperation {
 export interface EmailServiceEntity extends Entities.Entity {
 }
 
+export const OAuth = new EnumType<OAuth>("OAuth");
+export type OAuth =
+  "None" |
+  "Microsoft" |
+  "Google";
+
 export const SmtpEmailServiceEntity = new Type<SmtpEmailServiceEntity>("SmtpEmailService");
 export interface SmtpEmailServiceEntity extends EmailServiceEntity {
   Type: "SmtpEmailService";
@@ -178,10 +184,14 @@ export interface SmtpNetworkDeliveryEmbedded extends Entities.EmbeddedEntity {
   username: string | null;
   password: string | null;
   newPassword: string | null;
-  useOAuth: boolean | null;
+  useOAuth: OAuth | null;
   oAuthClientID: string | null;
   oAuthTenantID: string | null;
   oAuthClientSecret: string | null;
+  oAuthClientAccessToken: string | null;
+  oAuthClientAccessTokenNew: string | null;
+  oAuthClientRefreshToken: string | null;
+  oAuthClientRefreshTokenNew: string | null;
   useDefaultCredentials: boolean;
   enableSSL: boolean;
   clientCertificationFiles: Entities.MList<ClientCertificationFileEmbedded>;
