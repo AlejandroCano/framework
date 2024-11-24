@@ -1,4 +1,6 @@
 using MailKit.Net.Pop3;
+using MailKit.Security;
+using Microsoft.Identity.Client;
 using MimeKit;
 using MimeKit.Tnef;
 using Signum.Files;
@@ -21,9 +23,34 @@ public class MailKitPop3Client : Mailing.Pop3.IPop3Client
         else
             client.Connect(service.Host, service.Port, MailKit.Security.SecureSocketOptions.None);
 
-        string cleanpw = Pop3ConfigurationLogic.DecryptPassword(service.Password!);
+        if (service.UseOAuth == true)
+        {
+            // OAuth2 configuration
+            var clientId = service.OAuthClientID;
+            var tenantId = service.OAuthTenantID;
+            var clientSecret = service.OAuthClientSecret;
+            var authority = $"https://login.microsoftonline.com/{tenantId}";
+            var scope = new[] { "https://outlook.office365.com/.default" };
 
-        client.Authenticate(service.Username, cleanpw);
+            // Get access token using Microsoft.Identity.Client
+            var app = ConfidentialClientApplicationBuilder.Create(clientId)
+                        .WithClientSecret(clientSecret)
+                        .WithAuthority(new Uri(authority))
+                        .Build();
+
+            var authResult = app.AcquireTokenForClient(scope).ExecuteAsync().GetAwaiter().GetResult();
+            var token = authResult.AccessToken;
+
+            // Authenticate with OAuth2 using the obtained token
+            var oauth2 = new SaslMechanismOAuth2(service.Username, token);
+            client.Authenticate(oauth2);
+        }
+        else
+        {
+            // Traditional authentication with username and password
+            string cleanpw = Pop3ConfigurationLogic.DecryptPassword(service.Password!);
+            client.Authenticate(service.Username, cleanpw);
+        }
     }
 
     public EmailMessageEntity GetMessage(MessageUid messageInfo, Lite<EmailReceptionEntity> reception)
