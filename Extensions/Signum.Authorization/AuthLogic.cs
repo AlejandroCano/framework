@@ -14,6 +14,8 @@ public static class AuthLogic
     public static event Action<UserEntity>? UserLogingIn;
     public static ICustomAuthorizer? Authorizer;
 
+    public static ResetLazy<HashSet< Lite<UserEntity>>> UsersDisabled ;
+
 
 
     /// <summary>
@@ -54,7 +56,6 @@ public static class AuthLogic
     public static ResetLazy<FrozenDictionary<Lite<RoleEntity>, RoleEntity>> RolesByLite = null!;
 
 
-
     class RoleData
     {
         public bool DefaultAllowed;
@@ -69,7 +70,7 @@ public static class AuthLogic
     }
 
     public static void Start(SchemaBuilder sb, string? systemUserName, string? anonymousUserName)
-    {   
+    {
         if (sb.NotDefined(MethodInfo.GetCurrentMethod()))
         {
             SystemUserName = systemUserName;
@@ -84,6 +85,9 @@ public static class AuthLogic
             };
 
             CultureInfoLogic.AssertStarted(sb);
+            UsersDisabled = sb.GlobalLazy(
+             () => Database.Query<UserEntity>() .Where(a => a.DisabledOn!=null && !AuthTokenServer.MustRefresh ( a.DisabledOn.Value)).Select(a => a.ToLite()).ToHashSet(),
+             new InvalidateWith(null));
 
             sb.Include<UserEntity>()
               .WithExpressionFrom((RoleEntity r) => r.Users())
@@ -143,12 +147,15 @@ public static class AuthLogic
             }, new InvalidateWith(typeof(RoleEntity)));
 
             sb.Schema.EntityEvents<RoleEntity>().Saving += Schema_Saving;
-
             UserGraph.Register();
 
 
         }
     }
+
+
+
+
 
     static SqlPreCommand? Role_PreDeleteSqlSync(Entity entity)
     {
@@ -180,7 +187,7 @@ public static class AuthLogic
         if (db != null)
             return db;
 
-        using (AuthLogic.Disable()) 
+        using (AuthLogic.Disable())
         using (OperationLogic.AllowSave<RoleEntity>())
         {
             var result = new RoleEntity
@@ -965,6 +972,10 @@ public static class AuthLogic
         return 0;
     }
 }
+
+
+
+
 
 public interface ICustomAuthorizer
 {

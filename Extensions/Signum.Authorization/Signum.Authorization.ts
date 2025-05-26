@@ -75,6 +75,7 @@ export module LoginAuthMessage {
   export const TryToLogInWithIt = new MessageKey("LoginAuthMessage", "TryToLogInWithIt");
   export const LoginWith0 = new MessageKey("LoginAuthMessage", "LoginWith0");
   export const SignInWithMicrosoft = new MessageKey("LoginAuthMessage", "SignInWithMicrosoft");
+  export const InvalidTokenDate0 = new MessageKey("LoginAuthMessage", "InvalidTokenDate0");
 }
 
 export const MergeStrategy = new EnumType<MergeStrategy>("MergeStrategy");
@@ -118,6 +119,10 @@ export interface UserLiteModel extends Entities.ModelEntity {
   oID: string /*Guid*/ | null;
   sID: string | null;
   photoSuffix: string | null;
+}
+
+export module UserMessage {
+  export const UserIsNotActive = new MessageKey("UserMessage", "UserIsNotActive");
 }
 
 export module UserOperation {
