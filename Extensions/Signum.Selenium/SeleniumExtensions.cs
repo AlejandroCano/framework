@@ -403,7 +403,10 @@ public static class SeleniumExtensions
     public static void SafeSendKeys(this IWebElement element, string? text)
     {
         element.ScrollTo();
-        new Actions(element.GetDriver()).MoveToElement(element).Perform();
+
+        //new Actions(element.GetDriver()).MoveToElement(element).Click().Perform();
+        element.Click();
+
         var length = 0;
         while((length = element.GetDomPropertyOrThrow("value").Length) > 0)
         {
