@@ -1,4 +1,7 @@
+using DocumentFormat.OpenXml.Spreadsheet;
+using Signum.Authorization;
 using Signum.Scheduler;
+using Schema = Signum.Engine.Maps.Schema;
 
 namespace Signum.Mailing.Reception;
 
@@ -31,8 +34,8 @@ public static class EmailReceptionLogic
 
     public static bool IsStarted = false;
 
-    public static Polymorphic<Func<EmailReceptionServiceEntity, EmailReceptionConfigurationEntity, EmailReceptionEntity>> EmailReceptionServices = 
-        new Polymorphic<Func<EmailReceptionServiceEntity, EmailReceptionConfigurationEntity, EmailReceptionEntity>>();
+    public static Polymorphic<Func< EmailReceptionServiceEntity, EmailReceptionConfigurationEntity, ScheduledTaskContext, EmailReceptionEntity>> EmailReceptionServices = 
+        new Polymorphic<Func<EmailReceptionServiceEntity, EmailReceptionConfigurationEntity, ScheduledTaskContext, EmailReceptionEntity>>();
 
     public static void Start(SchemaBuilder sb, Func<EmailReceptionConfigurationEntity, EmailReceptionEntity> getPop3Client, Func<string, string>? encryptPassword = null, Func<string, string>? decryptPassword = null)
     {
@@ -105,22 +108,50 @@ public static class EmailReceptionLogic
                 {
                     using (var tr = Transaction.None())
                     {
-                        EmailReceptionEntity result = ReceiveEmails(e);
+                        ScheduledTaskLogEntity stl = new ScheduledTaskLogEntity
+                        {
+                            Task = EmailReceptionAction.ReceiveAllActiveEmailConfigurations,
+                            //ScheduledTask = scheduledTask,
+                            StartTime = Clock.Now,
+                            MachineName = Schema.Current.MachineName,
+                            ApplicationName = Schema.Current.ApplicationName,
+                            User = UserEntity.Current,
+                        };
+                        var ctx = new ScheduledTaskContext(stl);
+
+
+
+
+                        EmailReceptionEntity result = ReceiveEmails( e, ctx);
                         return tr.Commit(result);
                     }
                 }
             }.Register();
 
-            SchedulerLogic.ExecuteTask.Register((EmailReceptionConfigurationEntity conf, ScheduledTaskContext ctx) => ReceiveEmails(conf).ToLite());
+            SchedulerLogic.ExecuteTask.Register((EmailReceptionConfigurationEntity conf, ScheduledTaskContext ctx) => ReceiveEmails(conf,ctx).ToLite());
 
             SimpleTaskLogic.Register(EmailReceptionAction.ReceiveAllActiveEmailConfigurations, (ScheduledTaskContext ctx) =>
             {
                 if (!EmailLogic.Configuration.ReciveEmails)
                     throw new InvalidOperationException("EmailLogic.Configuration.ReciveEmails is set to false");
 
+
+                var hour = DateTime.Now.Hour;
+                if (0 < hour && hour < 6)
+                {
+                    if(ctx!=null)
+                    ctx.StringBuilder.AppendLine("Avoid");
+                    return null;
+                }
+                    
+
+
+
+
                 foreach (var item in Database.Query<EmailReceptionConfigurationEntity>().Where(a => a.Active).ToList())
                 {
-                    ReceiveEmails(item);
+                    ctx.CancellationToken.ThrowIfCancellationRequested();
+                    ReceiveEmails(item, ctx);
                 }
 
                 return null;
@@ -144,9 +175,12 @@ public static class EmailReceptionLogic
         IsStarted = true;
     }
 
-    private static EmailReceptionEntity ReceiveEmails(EmailReceptionConfigurationEntity e)
+    private static EmailReceptionEntity ReceiveEmails(EmailReceptionConfigurationEntity e, ScheduledTaskContext ctx)
     {
-        return EmailReceptionServices.Invoke(e.Service, e);
+
+    
+
+        return EmailReceptionServices.Invoke(e.Service, e, ctx);
     }
 
 }

@@ -38,6 +38,7 @@ export module ChangeLogViewLogOperation {
 export const ClientErrorModel = new Type<ClientErrorModel>("ClientErrorModel");
 export interface ClientErrorModel extends Entities.ModelEntity {
   Type: "ClientErrorModel";
+  url: string | null;
   errorType: string;
   message: string;
   stack: string | null;
@@ -181,8 +182,8 @@ export interface SystemEventLogEntity extends Entities.Entity {
   exception: Entities.Lite<ExceptionEntity> | null;
 }
 
-export const TranslateableRouteType = new EnumType<TranslateableRouteType>("TranslateableRouteType");
-export type TranslateableRouteType =
+export const TranslatableRouteType = new EnumType<TranslatableRouteType>("TranslatableRouteType");
+export type TranslatableRouteType =
   "Text" |
   "Html";
 
