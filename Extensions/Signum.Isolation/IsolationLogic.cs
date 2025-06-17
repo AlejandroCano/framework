@@ -15,10 +15,13 @@ public static class IsolationLogic
 
     internal static Dictionary<Type, IsolationStrategy> strategies = new Dictionary<Type, IsolationStrategy>();
 
-    public static void Start(SchemaBuilder sb)
+    public static void Start(SchemaBuilder sb,bool avoidExtraException =false)
     {
         if (sb.NotDefined(MethodInfo.GetCurrentMethod()))
         {
+
+            AvoidExtraException = avoidExtraException;
+
             ExecutionMode.OnSetIsolation += entity =>
             {
                 var iso = entity.TryIsolation();
@@ -99,6 +102,9 @@ public static class IsolationLogic
         }
     }
 
+
+    public static bool AvoidExtraException { get; set; } = false;
+
     static void AssertIsolationStrategies()
     {
         var result = EnumerableExtensions.JoinStrict(
@@ -113,7 +119,7 @@ public static class IsolationLogic
         var lacking = result.Missing.GroupBy(a => a.Namespace).OrderBy(gr => gr.Key).ToString(gr => "  //{0}\r\n".FormatWith(gr.Key) +
             gr.ToString(t => "  IsolationLogic.Register<{0}>(IsolationStrategy.XXX);".FormatWith(t.Name), "\r\n"), "\r\n\r\n");
 
-        if (extra.HasText() || lacking.HasText())
+        if (    (extra.HasText() && !AvoidExtraException) || lacking.HasText())
             throw new InvalidOperationException("IsolationLogic's strategies are not synchronized with the Schema.\r\n" +
                     (extra.HasText() ? ("Remove something like:\r\n" + extra + "\r\n\r\n") : null) +
                     (lacking.HasText() ? ("Add something like:\r\n" + lacking + "\r\n\r\n") : null));
