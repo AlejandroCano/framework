@@ -15,7 +15,7 @@ public static class IsolationLogic
 
     internal static Dictionary<Type, IsolationStrategy> strategies = new Dictionary<Type, IsolationStrategy>();
 
-    public static void Start(SchemaBuilder sb,bool avoidExtraException =false)
+    public static void Start(SchemaBuilder sb, bool avoidExtraException = false)
     {
         if (sb.NotDefined(MethodInfo.GetCurrentMethod()))
         {
@@ -119,10 +119,10 @@ public static class IsolationLogic
         var lacking = result.Missing.GroupBy(a => a.Namespace).OrderBy(gr => gr.Key).ToString(gr => "  //{0}\r\n".FormatWith(gr.Key) +
             gr.ToString(t => "  IsolationLogic.Register<{0}>(IsolationStrategy.XXX);".FormatWith(t.Name), "\r\n"), "\r\n\r\n");
 
-        if (    (extra.HasText() && !AvoidExtraException) || lacking.HasText())
+        if ((extra.HasText() && !AvoidExtraException) || lacking.HasText())
             throw new InvalidOperationException("IsolationLogic's strategies are not synchronized with the Schema.\r\n" +
-                    (extra.HasText() ? ("Remove something like:\r\n" + extra + "\r\n\r\n") : null) +
-                    (lacking.HasText() ? ("Add something like:\r\n" + lacking + "\r\n\r\n") : null));
+                     (lacking.HasText() ? ("Add something like:\r\n" + lacking + "\r\n\r\n") : null) +
+                     (extra.HasText() ? ("Remove something like:\r\n" + extra + "\r\n\r\n") : null));
 
         foreach (var item in strategies.Where(kvp => kvp.Value == IsolationStrategy.Isolated || kvp.Value == IsolationStrategy.Optional))
         {
@@ -157,8 +157,8 @@ public static class IsolationLogic
                 return new FilterQueryResult<T>(
                     a => a.Mixin<IsolationMixin>().Isolation.Is(IsolationEntity.Current),
                     a => a.Mixin<IsolationMixin>().Isolation.Is(IsolationEntity.Current));
-            
-            if(stragegy == IsolationStrategy.Optional)
+
+            if (stragegy == IsolationStrategy.Optional)
                 return new FilterQueryResult<T>(
                     a => a.Mixin<IsolationMixin>().Isolation.Is(IsolationEntity.Current) || a.Mixin<IsolationMixin>().Isolation == null,
                     a => a.Mixin<IsolationMixin>().Isolation.Is(IsolationEntity.Current) || a.Mixin<IsolationMixin>().Isolation == null);
@@ -202,7 +202,7 @@ public static class IsolationLogic
             Schema.Current.Settings.FieldAttributes((T e) => e.Mixin<IsolationMixin>().Isolation).Remove<ForceNotNullableAttribute>(); //Remove non-null 
         }
     }
-    
+
     public static IEnumerable<T> WhereCurrentIsolationInMemory<T>(this IEnumerable<T> collection) where T : Entity
     {
         var curr = IsolationEntity.Current;
