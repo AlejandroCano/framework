@@ -8,7 +8,7 @@ namespace Signum.API.ApiControllers;
 public class EntitiesController : ControllerBase
 {
     [HttpGet("api/entity/{type}/{id}"), ProfilerActionSplitter("type")]
-    public Entity GetEntity(string type, string id, [FromQuery]int? partitionId)
+    public Entity GetEntity(string type, string id, [FromQuery] int? partitionId)
     {
         var entityType = TypeLogic.GetType(type);
 
@@ -21,7 +21,14 @@ public class EntitiesController : ControllerBase
         }
 
     }
-
+    [HttpGet("api/entityPackLight/{type}/{id}"), ProfilerActionSplitter("type")]
+    public EntityPackTS GetEntityPackLight(string type, string id, [FromQuery] int? partitionId)
+    {
+        var ep = GetEntityPack(type, id, partitionId);
+        ep.canExecute = new Dictionary<string, string>();
+        ep.extension = new Dictionary<string, object?>();
+        return ep;
+    }
     [HttpGet("api/entityPack/{type}/{id}"), ProfilerActionSplitter("type")]
     public EntityPackTS GetEntityPack(string type, string id, [FromQuery] int? partitionId)
     {
@@ -37,13 +44,13 @@ public class EntitiesController : ControllerBase
     }
 
     [HttpPost("api/entityPackEntity")/*, ValidateModelFilter*/]
-    public EntityPackTS GetEntityPackEntity([Required, FromBody]Entity entity)
+    public EntityPackTS GetEntityPackEntity([Required, FromBody] Entity entity)
     {
         return SignumServer.GetEntityPack(entity);
     }
 
     [HttpPost("api/liteModels")]
-    public object[] LiteModels([Required, FromBody]Lite<Entity>[] lites)
+    public object[] LiteModels([Required, FromBody] Lite<Entity>[] lites)
     {
         if (lites == null || lites.Length == 0)
             throw new ArgumentNullException(nameof(lites));
@@ -65,7 +72,7 @@ public class EntitiesController : ControllerBase
     }
 
     [HttpPost("api/validateEntity"), ValidateModelFilter]
-    public void ValidateEntity([Required, FromBody]ModifiableEntity entity)
+    public void ValidateEntity([Required, FromBody] ModifiableEntity entity)
     {
         return;
     }
