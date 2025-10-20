@@ -10,7 +10,7 @@ public class QueryHelpEntity : Entity, IHelpImageTarget
     public CultureInfoEntity Culture { get; set; }
 
     [Ignore]
-    public string Info { get; set; }
+    public string? Info { get; set; }
 
     [StringLengthValidator(MultiLine = true)]
     public string? Description { get; set; }

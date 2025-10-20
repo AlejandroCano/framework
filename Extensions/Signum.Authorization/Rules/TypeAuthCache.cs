@@ -319,7 +319,7 @@ class TypeAuthCache : IManualAuth<Type, TypeAllowedAndConditions>
         }
     }
 
-    internal XElement ExportXml(List<Type>? allTypes)
+    internal XElement ExportXml(List<Type>? allTypes, Func<Type, bool>? onIncludeType = null)
     {
         var rules = runtimeRules.Value;
 
@@ -331,7 +331,7 @@ class TypeAuthCache : IManualAuth<Type, TypeAllowedAndConditions>
                     from k in allTypes ?? (rac.DefaultDictionary().OverrideDictionary?.Keys).EmptyIfNull()
                     let allowedBase = rac.GetAllowedBase(k)
                     let allowed = rac.GetAllowed(k)
-                    where allTypes != null || !allowed.Equals(allowedBase)
+                    where (allTypes != null || !allowed.Equals(allowedBase)) && (onIncludeType?.Invoke(k) ?? true)
                     let resource = TypeLogic.GetCleanName(k)
                     orderby resource
                     select new XElement("Type",

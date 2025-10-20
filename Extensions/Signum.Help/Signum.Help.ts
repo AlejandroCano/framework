@@ -158,7 +158,7 @@ export const OperationHelpEmbedded = new Type<OperationHelpEmbedded>("OperationH
 export interface OperationHelpEmbedded extends Entities.EmbeddedEntity {
   Type: "OperationHelpEmbedded";
   operation: Operations.OperationSymbol;
-  info: string;
+  info: string | null;
   description: string | null;
 }
 
@@ -184,7 +184,7 @@ export interface QueryHelpEntity extends Entities.Entity, IHelpImageTarget {
   Type: "QueryHelp";
   query: Basics.QueryEntity;
   culture: Basics.CultureInfoEntity;
-  info: string;
+  info: string | null;
   description: string | null;
   columns: Entities.MList<QueryColumnHelpEmbedded>;
   isEmpty: boolean;

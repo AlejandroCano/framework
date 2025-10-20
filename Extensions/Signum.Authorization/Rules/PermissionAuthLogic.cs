@@ -41,8 +41,9 @@ public static class PermissionAuthLogic
 
             PermissionLogic.RegisterTypes(typeof(BasicPermission));
 
-            AuthLogic.ExportToXml += exportAll => cache.ExportXml("Permissions", "Permission", a => a.Key, b => b.ToString(),
-                exportAll ? PermissionLogic.RegisteredPermission.ToList() : null);
+            AuthLogic.ExportToXml += options => cache.ExportXml("Permissions", "Permission", a => a.Key, b => b.ToString(),
+                options?.ExportAll == true ? PermissionLogic.RegisteredPermission.ToList() : null);
+            
             AuthLogic.ImportFromXml += (x, roles, replacements) =>
             {
                 string replacementKey = "AuthRules:" + typeof(PermissionSymbol).Name;

@@ -41,7 +41,7 @@ public static partial class TypeAuthLogic
 
             cache = new TypeAuthCache(sb, merger: TypeAllowedMerger.Instance);
 
-            AuthLogic.ExportToXml += exportAll => cache.ExportXml(exportAll ? TypeLogic.TypeToEntity.Keys.ToList() : null);
+            AuthLogic.ExportToXml += options => cache.ExportXml(options?.ExportAll == true ? TypeLogic.TypeToEntity.Keys.ToList() : null, t => !t.IsEnumEntity() && options?.ExportToXmlIgnoreTypes.Contains(t) != true);
             AuthLogic.ImportFromXml += (x, roles, replacements) => cache.ImportXml(x, roles, replacements);
 
             AuthLogic.HasRuleOverridesEvent += role => cache.HasRealOverrides(role);

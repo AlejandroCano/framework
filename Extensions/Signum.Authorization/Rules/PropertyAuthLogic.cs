@@ -42,8 +42,11 @@ public static class PropertyAuthLogic
 
             PropertyRoute.SetIsAllowedCallback(pp => pp.GetAllowedFor(PropertyAllowed.Read));
 
-            AuthLogic.ExportToXml += exportAll => cache.ExportXml("Properties", "Property", p => TypeLogic.GetCleanName(p.RootType) + "|" + p.PropertyString(), pa => pa.ToString(),
-                exportAll ? TypeLogic.TypeToEntity.Keys.SelectMany(t => PropertyRoute.GenerateRoutes(t)).ToList() : null);
+            AuthLogic.ExportToXml += options => cache.ExportXml("Properties", "Property", p => TypeLogic.GetCleanName(p.RootType) + "|" + p.PropertyString(), pa => pa.ToString(),
+                allKeys: options?.ExportAll == true ? TypeLogic.TypeToEntity.Keys.SelectMany(t => PropertyRoute.GenerateRoutes(t)).ToList() : null,
+                onGetConditionRules: options?.ExportTypeConditionsForProperties == true ? (p, r) => TypeAuthLogic.Manual.GetAllowed(r, p.RootType).ConditionRules : null,
+                onIncludeElement: p => !p.RootType.IsEnumEntity() && options?.ExportToXmlIgnoreTypes.Contains(p.RootType) != true && options?.ExportToXmlIgnoreProperties.Any(a => p.ToString().Contains(a)) != true);
+
             AuthLogic.ImportFromXml += (x, roles, replacements) =>
             {
                 Dictionary<Type, Dictionary<string, PropertyRoute>> routesDicCache = new Dictionary<Type, Dictionary<string, PropertyRoute>>();

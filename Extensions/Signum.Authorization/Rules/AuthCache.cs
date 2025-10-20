@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Frozen;
 using System.Xml.Linq;
 
@@ -287,26 +288,32 @@ class AuthCache<RT, AR, R, K, A> : IManualAuth<K, A>
         }
     }
 
-    internal XElement ExportXml(XName rootName, XName elementName, Func<K, string> resourceToString, Func<A, string> allowedToString, List<K>? allKeys)
+    internal XElement ExportXml(XName rootName, XName elementName, Func<K, string> resourceToString, Func<A, string> allowedToString, List<K>? allKeys, Func<K, Lite<RoleEntity>, MList<TypeConditionRuleModel>>? onGetConditionRules = null, Func<K, bool>? onIncludeElement = null)
     {
         var rules = runtimeRules.Value;
 
         return new XElement(rootName,
             from r in AuthLogic.RolesInOrder(includeTrivialMerge: false)
-             let rac = rules.GetOrThrow(r)
+            let rac = rules.GetOrThrow(r)
 
-             select new XElement("Role",
-                 new XAttribute("Name", r.ToString()!),
-                     from k in allKeys ?? (rac.DefaultDictionary().OverrideDictionary?.Keys).EmptyIfNull()
-                     let allowedBase = rac.GetAllowedBase(k)
-                     let allowed = rac.GetAllowed(k)
-                     where allKeys != null || !allowed.Equals(allowedBase)
-                     let resource = resourceToString(k)
-                     orderby resource
-                     select new XElement(elementName,
-                        new XAttribute("Resource", resource),
-                        new XAttribute("Allowed", allowedToString(allowed)))
-            ));
+            select new XElement("Role",
+                new XAttribute("Name", r.ToString()!),
+                    from k in allKeys ?? (rac.DefaultDictionary().OverrideDictionary?.Keys).EmptyIfNull()
+                    let allowedBase = rac.GetAllowedBase(k)
+                    let allowed = rac.GetAllowed(k)
+                    where (allKeys != null || !allowed.Equals(allowedBase)) && (onIncludeElement?.Invoke(k) ?? true)
+                    let resource = resourceToString(k)
+                    orderby resource
+                    select new XElement(elementName,
+                       new XAttribute("Resource", resource),
+                       new XAttribute("Allowed", allowedToString(allowed)),
+                           onGetConditionRules == null ? null :
+                               from c in onGetConditionRules.Invoke(k, r)
+                               select new XElement("Condition",
+                                   new XAttribute("Name", c.TypeConditions.ToString(", ")),
+                                   new XAttribute("Allowed", allowedToString(allowed)))
+                  )
+           ));
     }
 
 

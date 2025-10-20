@@ -41,8 +41,17 @@ public static class QueryAuthLogic
                 return null;
             };
 
-            AuthLogic.ExportToXml += exportAll => cache.ExportXml("Queries", "Query", QueryUtils.GetKey, b => b.ToString(),
-                exportAll ? QueryLogic.QueryNames.Values.ToList() : null);
+            AuthLogic.ExportToXml += options => cache.ExportXml("Queries", "Query", QueryUtils.GetKey, b => b.ToString(),
+                allKeys: options?.ExportAll == true ? QueryLogic.QueryNames.Values.ToList() : null,
+                onIncludeElement: qo =>
+                {
+                    var type = TypeLogic.TryGetType(QueryUtils.GetKey(qo));
+                    if (type == null)
+                        return true;
+
+                    return !type.IsEnumEntity() && options?.ExportToXmlIgnoreTypes.Contains(type) != true;
+                });
+
             AuthLogic.ImportFromXml += (x, roles, replacements) =>
             {
                 string replacementKey = "AuthRules:" + typeof(QueryEntity).Name;

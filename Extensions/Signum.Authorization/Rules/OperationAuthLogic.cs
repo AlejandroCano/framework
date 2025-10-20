@@ -43,8 +43,10 @@ public static class OperationAuthLogic
                 return null;
             };
 
-            AuthLogic.ExportToXml += exportAll => cache.ExportXml("Operations", "Operation", s => s.operation.Key + "/" + s.type?.ToTypeEntity().CleanName, b => b.ToString(),
-                exportAll ? AllOperationTypes() : null);
+            AuthLogic.ExportToXml += options => cache.ExportXml("Operations", "Operation", s => s.operation.Key + "/" + s.type?.ToTypeEntity().CleanName, b => b.ToString(),
+                allKeys: options?.ExportAll == true ? AllOperationTypes() : null, 
+                onGetConditionRules: options?.ExportTypeConditionsForOperations == true ? (s, r) => TypeAuthLogic.Manual.GetAllowed(r, s.type).ConditionRules : null, 
+                onIncludeElement: s => !s.type.IsEnumEntity() && options?.ExportToXmlIgnoreTypes.Contains(s.type) != true);
 
             AuthLogic.ImportFromXml += (x, roles, replacements) =>
             {
@@ -163,7 +165,7 @@ public static class OperationAuthLogic
 
     static List<(OperationSymbol operation, Type type)> AllOperationTypes()
     {
-        return (from type in Schema.Current.Tables.Keys
+        return (from type in Schema.Current.Tables.Keys 
                 from o in OperationLogic.TypeOperations(type)
                 select (operation: o.OperationSymbol, type: type))
                 .ToList();

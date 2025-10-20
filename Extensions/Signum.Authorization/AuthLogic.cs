@@ -511,10 +511,20 @@ public static class AuthLogic
         return rolesGraph.Value.IndirectlyRelatedTo(role).Count;
     }
 
-    public static event Func<bool, XElement>? ExportToXml;
+    public static event Func<ExportToXmlOptions?, XElement>? ExportToXml;
     public static event Func<XElement, Dictionary<string, Lite<RoleEntity>>, Replacements, SqlPreCommand?>? ImportFromXml;
 
-    public static XDocument ExportRules(bool exportAll = false)
+    public class ExportToXmlOptions
+    {
+        public bool ExportAll { get; set; }
+        public bool ExportTypeConditionsForOperations { get; set; }
+        public bool ExportTypeConditionsForProperties { get; set; }
+        public List<Type> ExportToXmlIgnoreTypes = new();
+        public List<string> ExportToXmlIgnoreProperties = new();
+
+    }
+
+    public static XDocument ExportRules(ExportToXmlOptions? options = null)
     {
         SystemEventLogLogic.Log("Export AuthRules");
 
@@ -531,7 +541,7 @@ public static class AuthLogic
                         new XAttribute("Contains", rolesGraph.Value.RelatedTo(r).ToString(",")),
                         rolesDic.TryGetC(r)?.Description?.Let(d => new XAttribute("Description", d))
                         ))),
-                 ExportToXml?.GetInvocationListTyped().Select(a => a(exportAll)).NotNull().OrderBy(a => a.Name.ToString())!));
+                 ExportToXml?.GetInvocationListTyped().Select(a => a(options)).NotNull().OrderBy(a => a.Name.ToString())!));
     }
 
     public static SqlPreCommand? ImportRulesScript(XDocument doc, bool interactive)
@@ -805,12 +815,12 @@ public static class AuthLogic
         SystemEventLogLogic.Log("Import AuthRules");
     }
 
-    public static void ImportExportAuthRules()
+    public static void ImportExportAuthRules(ExportToXmlOptions? options = null)
     {
-        ImportExportAuthRules("AuthRules.xml");
+        ImportExportAuthRules("AuthRules.xml", options);
     }
 
-    public static void ImportExportAuthRules(string fileName)
+    public static void ImportExportAuthRules(string fileName, ExportToXmlOptions? options = null)
     {
         void Import()
         {
@@ -844,7 +854,7 @@ public static class AuthLogic
 
         void Export()
         {
-            var doc = ExportRules();
+            var doc = ExportRules(options);
             doc.Save(fileName);
             Console.WriteLine("Sucesfully exported to {0}".FormatWith(fileName));
 
