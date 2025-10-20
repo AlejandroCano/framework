@@ -350,12 +350,12 @@ public sealed class PrimaryKeyAttribute : DbTypeAttribute
         }
     }
 
-    public PrimaryKeyAttribute(Type type, string name = "ID")
+    public PrimaryKeyAttribute(Type type, string name = "ID", bool identityBehaviour = true)
     {
         this.Type = type;
         this.Name = name;
         this.Identity = type != typeof(Guid);
-        this.IdentityBehaviour = true;
+        this.IdentityBehaviour = identityBehaviour;
     }
 }
 
