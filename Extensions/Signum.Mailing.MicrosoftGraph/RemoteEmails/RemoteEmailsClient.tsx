@@ -24,7 +24,7 @@ export namespace RemoteEmailsClient {
   
   export function start(options: {
     routes: RouteObject[],
-  }) {
+  }): void {
     Navigator.addSettings(new EntitySettings(RemoteEmailMessageModel, e => import('./RemoteEmailMessage'), {
       renderSubTitle: r => <span>
         {getTypeInfo(r.Type).niceName}
@@ -148,7 +148,7 @@ export namespace RemoteEmailsClient {
     await Navigator.view(message);
   }
   
-  export module API {
+  export namespace API {
     export function getRemoteEmail(userOID: string, messageId: string): Promise<RemoteEmailMessageModel> {
       return ajaxGet({ url: `/api/remoteEmail/${userOID}/${messageId}` });
     }
@@ -161,7 +161,7 @@ export namespace RemoteEmailsClient {
       return ajaxGetRaw({ url: `/api/remoteEmail/${userOID}/${messageId}/attachment/${attachmentId}`});
     }
   
-    export function getRemoteAttachmentUrl(userOID: string, messageId: string, attachmentId: string) {
+    export function getRemoteAttachmentUrl(userOID: string, messageId: string, attachmentId: string): string {
       return `/api/remoteEmail/${userOID}/${messageId}/attachment/${attachmentId}`
     }
   }

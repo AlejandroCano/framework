@@ -3,20 +3,34 @@ import { Button } from 'react-bootstrap';
 import { PropertyRouteEntity } from '@framework/Signum.Basics';
 import { Operations } from '@framework/Operations'
 import { TypeContext, ButtonsContext, IRenderButtons } from '@framework/TypeContext'
-import { EntityLine, AutoLine } from '@framework/Lines'
+import { EntityLine, AutoLine, Binding, FormGroup } from '@framework/Lines'
 import { AuthAdminClient } from '../AuthAdminClient'
-import { PropertyRulePack, PropertyAllowedRule, PropertyAllowed, AuthAdminMessage } from './Signum.Authorization.Rules'
+import { PropertyRulePack, PropertyAllowedRule, PropertyAllowed, AuthAdminMessage, TypeConditionSymbol, WithConditionsModel, ConditionRuleModel } from './Signum.Authorization.Rules'
 import { ColorRadio, GrayCheckbox } from './ColoredRadios'
 import "./AuthAdmin.css"
-import { useForceUpdate } from '@framework/Hooks';
+import { is } from '@framework/Signum.Entities';
+import { useDragAndDrop } from './TypeRulePackControl';
+import { GraphExplorer } from '@framework/Reflection';
+import SelectorModal from '../../../Signum/React/SelectorModal';
 
-export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx: TypeContext<PropertyRulePack> }, ref: React.Ref<IRenderButtons>) {
+export default function PropertyRulesPackControl({ ctx, initialTypeConditions, innerRef }: { ctx: TypeContext<PropertyRulePack>, initialTypeConditions: TypeConditionSymbol[] | undefined, innerRef?: React.Ref<IRenderButtons> }): React.JSX.Element {
+
+
+  const [typeConditions, setTypeConditions] = React.useState<TypeConditionSymbol[] | undefined>(initialTypeConditions);
 
   function handleSaveClick(bc: ButtonsContext) {
     let pack = ctx.value;
 
     AuthAdminClient.API.savePropertyRulePack(pack)
-      .then(() => AuthAdminClient.API.fetchPropertyRulePack(pack.type.cleanName!, pack.role.id!))
+      .then(() => fetchPropertyRulePack(pack, bc));
+  }
+
+  function handleResetChangesClick(bc: ButtonsContext) {
+    fetchPropertyRulePack(ctx.value, bc);
+  }
+
+  function fetchPropertyRulePack(pack: PropertyRulePack, bc: ButtonsContext) {
+    return AuthAdminClient.API.fetchPropertyRulePack(pack.type.cleanName!, pack.role.id!)
       .then(newPack => {
         Operations.notifySuccess();
         bc.frame.onReload({ entity: newPack, canExecute: {} });
@@ -24,27 +38,36 @@ export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx
   }
 
   function renderButtons(bc: ButtonsContext) {
+
+    const hasChanges = GraphExplorer.hasChanges(bc.pack.entity); 
+
     return [
-      { button: <Button variant="primary" disabled={ctx.readOnly} onClick={() => handleSaveClick(bc)}>{AuthAdminMessage.Save.niceToString()}</Button> }
+      { button: <Button variant="primary" disabled={!hasChanges || ctx.readOnly} onClick={() => handleSaveClick(bc)}>{AuthAdminMessage.Save.niceToString()}</Button> },
+      { button: <Button variant="warning" disabled={!hasChanges || ctx.readOnly} onClick={() => handleResetChangesClick(bc)}>{AuthAdminMessage.ResetChanges.niceToString()}</Button> }
     ];
   }
 
-  React.useImperativeHandle(ref, () => ({ renderButtons }), [ctx.value]);
-  const forceUpdate = useForceUpdate();
+  React.useImperativeHandle(innerRef, () => ({ renderButtons }), [ctx.value]);
+
+  function updateFrame() {
+    ctx.frame!.frameComponent.forceUpdate();
+  }
+
 
   function handleHeaderClick(e: React.MouseEvent<HTMLAnchorElement>, hc: PropertyAllowed) {
 
     ctx.value.rules.forEach(mle => {
-      if (!mle.element.coercedValues!.contains(hc)) {
-        mle.element.allowed = hc;
-        mle.element.modified = true;
-      }
+      const value = PropertyAllowed.min(getBinding(mle.element.coerced, typeConditions).getValue(), hc);
+      getBinding(mle.element.allowed, typeConditions).setValue(value);
+      mle.element.modified = true;
     });
 
-    forceUpdate();
+    updateFrame();
   }
 
-
+  function hasOverrides(tcs: TypeConditionSymbol[] | undefined): undefined | "fw-bold" {
+    return ctx.value.rules.some(r => getBinding(r.element.allowed, tcs).getValue() != getBinding(r.element.allowedBase, tcs).getValue()) ? "fw-bold" : undefined;
+  }
 
   return (
     <div>
@@ -52,6 +75,51 @@ export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx
         <EntityLine ctx={ctx.subCtx(f => f.role)} />
         <AutoLine ctx={ctx.subCtx(f => f.strategy)} />
         <EntityLine ctx={ctx.subCtx(f => f.type)} />
+        <FormGroup ctx={ctx} label="Type Conditions">
+          {id =>
+            <div id={id}>
+              <select className={hasOverrides(typeConditions)} value={typeConditions?.map(a => a.key).join(" & ")} onChange={e => {
+                if (e.currentTarget.value == "Fallback")
+                  setTypeConditions(undefined);
+                else {
+                  var tcs = ctx.value.availableTypeConditions.single(arr => arr.map(a => a.key).join(" & ") == e.currentTarget.value);
+                  setTypeConditions(tcs);
+                }
+              }} >
+                <option value="Fallback" className={hasOverrides(undefined)}>Fallback</option>
+                {ctx.value.availableTypeConditions.map((arr, i) => <option value={arr.map(a => a.key).join(" & ")} className={hasOverrides(arr)}>
+                  {arr.map(a => a.key.after(".")).join(" & ")}
+                </option>)}
+              </select>
+
+              {ctx.value.availableTypeConditions.length > 1 && 
+                <button className="btn btn-xs btn-primary mx-1" onClick={e => {
+                  var options = ["Fallback", ...ctx.value.availableTypeConditions.map(a => a.map(a => a.key).join(" & "))]
+                    .filter(o => o != (typeConditions?.map(a => a.key).join(" & ") ?? "Fallback"))
+                    .map(o => o.tryAfter(".") ?? o);
+
+                  SelectorModal.chooseElement(options)
+                    .then(option => {
+                      if (!option)
+                        return;
+
+                      var tcs = option == "Fallback" ? undefined : ctx.value.availableTypeConditions.single(arr => arr.map(a => a.key.after(".")).join(" & ") == option);
+                      Promise.resolve(() => ctx.mlistItemCtxs(a => a.rules).forEach(tctx => {
+                        const allowedBinding = getBinding(tctx.value.allowed, typeConditions);
+                        const coercedBinding = getBinding(tctx.value.coerced, typeConditions);
+                        const allowed = getBinding(tctx.value.allowed, tcs).getValue();
+
+                        if (PropertyAllowed.index(coercedBinding.getValue()) < PropertyAllowed.index(allowed))
+                          return;
+
+                        allowedBinding.setValue(allowed);
+                      }))
+                        .then(f => f())
+                        .then(() => updateFrame());
+                    });
+                }}>Copy from…</button>}
+            </div>}
+        </FormGroup>
       </div>
       <table className="table table-sm sf-auth-rules">
         <thead>
@@ -74,46 +142,72 @@ export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx
           </tr>
         </thead>
         <tbody>
-          {ctx.mlistItemCtxs(a => a.rules).map((c, i) =>
-            <tr key={i}>
-              <td>
-                {c.value.resource.path}
-              </td>
-              <td style={{ textAlign: "center" }}>
-                {renderRadio(c.value, "Write", "green")}
-              </td>
-              <td style={{ textAlign: "center" }}>
-                {renderRadio(c.value, "Read", "#FFAD00")}
-              </td>
-              <td style={{ textAlign: "center" }}>
-                {renderRadio(c.value, "None", "red")}
-              </td>
-              <td style={{ textAlign: "center" }}>
-                <GrayCheckbox readOnly={ctx.readOnly} checked={c.value.allowed != c.value.allowedBase} onUnchecked={() => {
-                  c.value.allowed = c.value.allowedBase;
-                  ctx.value.modified = true;
-                  forceUpdate();
-                }} />
-              </td>
-            </tr>
-          )
-          }
+          {ctx.mlistItemCtxs(a => a.rules).map((tctx, i) => <PropertyRow key={i} tctx={tctx} updateFrame={updateFrame} getBidning={tac => getBinding(tac, typeConditions)} />)}
         </tbody>
       </table>
 
     </div>
   );
+}
 
-  function renderRadio(c: PropertyAllowedRule, allowed: PropertyAllowed, color: string) {
+function PropertyRow(p: { tctx: TypeContext<PropertyAllowedRule>, updateFrame: () => void, getBidning: (e: WithConditionsModel<PropertyAllowed>) => Binding<PropertyAllowed> }): React.JSX.Element {
 
-    if (c.coercedValues!.contains(allowed))
+  const getConfig = useDragAndDrop(p.tctx.value.allowed.conditionRules, () => p.updateFrame(), () => { p.tctx.value.modified = true; p.updateFrame(); });
+
+  const allowedBinding = p.getBidning(p.tctx.value.allowed);
+  const allowedBaseBinding = p.getBidning(p.tctx.value.allowedBase);
+  const coercedBinding = p.getBidning(p.tctx.value.coerced);
+
+  function renderRadio(allowed: PropertyAllowed, color: string) {
+
+    if (PropertyAllowed.index(coercedBinding.getValue()) < PropertyAllowed.index(allowed))
       return;
 
     return <ColorRadio
-      readOnly={ctx.readOnly}
-      checked={c.allowed == allowed}
+      readOnly={p.tctx.readOnly}
+      checked={allowedBinding.getValue() == allowed}
       color={color}
-      onClicked={a => { c.allowed = allowed; c.modified = true; forceUpdate() }}
+      onClicked={e => {
+        allowedBinding.setValue(allowed);
+        p.updateFrame();
+      }}
     />;
   }
-});
+
+  return (
+      <tr>
+      <td>
+        {p.tctx.value.resource.path}
+        </td>
+        <td style={{ textAlign: "center" }}>
+          {renderRadio("Write", "green")}
+        </td>
+        <td style={{ textAlign: "center" }}>
+          {renderRadio("Read", "#FFAD00")}
+        </td>
+        <td style={{ textAlign: "center" }}>
+          {renderRadio("None", "red")}
+        </td>
+      <td style={{ textAlign: "center" }}>
+        <GrayCheckbox readOnly={p.tctx.readOnly} checked={allowedBinding.getValue() != allowedBaseBinding.getValue()} onUnchecked={() => {
+          allowedBinding.setValue(allowedBaseBinding.getValue());
+          p.updateFrame();
+        }} />
+        </td>
+      </tr>
+  )
+}
+
+
+function matches(r: ConditionRuleModel<PropertyAllowed>, typeConditions: TypeConditionSymbol[]) {
+  return r.typeConditions.length == typeConditions.length && r.typeConditions.every((tc, i) => is(tc.element, typeConditions[i]));
+}
+
+function getBinding(pac: WithConditionsModel<PropertyAllowed>, typeConditions: TypeConditionSymbol[] | undefined): Binding<PropertyAllowed> {
+  if (typeConditions == undefined)
+    return new Binding(pac, "fallback");
+  else {
+    var cr = pac.conditionRules.single(a => matches(a.element, typeConditions)).element;
+    return new Binding(cr, "allowed");
+  }
+}

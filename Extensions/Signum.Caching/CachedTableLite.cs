@@ -53,12 +53,12 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
         //Query
         using (ObjectName.OverrideOptions(new ObjectNameOptions { AvoidDatabaseName = true }))
         {
-            string select = "SELECT {0}\r\nFROM {1} {2}\r\n".FormatWith(
+            string select = "SELECT {0}\nFROM {1} {2}\n".FormatWith(
                 ctr.columns.ToString(c => currentAlias + "." + c.Name.SqlEscape(isPostgres), ", "),
                 table.Name.ToString(),
                 currentAlias.ToString());
 
-            select += this.lastPartialJoin + currentAlias + "." + table.PrimaryKey.Name.SqlEscape(isPostgres) + "\r\n" + this.remainingJoins;
+            select += this.lastPartialJoin + currentAlias + "." + table.PrimaryKey.Name.SqlEscape(isPostgres) + "\n" + this.remainingJoins;
 
             query = new SqlPreCommandSimple(select);
         }
@@ -97,10 +97,10 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
             });
         }, mode: LazyThreadSafetyMode.ExecutionAndPublication);
 
-        if (!CacheLogic.WithSqlDependency) //Always semi
-        {
+        //if (!CacheLogic.WithSqlDependency) //Always semi
+        //{
             semiCachedController = new SemiCachedController<T>(this);
-        }
+        //}
     }
 
     public override void SchemaCompleted()

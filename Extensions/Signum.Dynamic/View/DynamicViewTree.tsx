@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes } from '@framework/Globals'
-import ContextMenu from '@framework/SearchControl/ContextMenu'
+import ContextMenu, { getMouseEventPosition } from '@framework/SearchControl/ContextMenu'
 import { ContextMenuPosition } from '@framework/SearchControl/ContextMenu'
 import * as NodeUtils from './NodeUtils'
 import NodeSelectorModal from './NodeSelectorModal'
@@ -36,7 +36,7 @@ interface DraggedOverInfo {
   error: DraggedError
 }
 
-export function DynamicViewTree(p: DynamicViewTreeProps) {
+export function DynamicViewTree(p: DynamicViewTreeProps): React.JSX.Element {
 
   const [draggedNode, setDraggedNode] = React.useState<DesignerNode<BaseNode> | undefined>(undefined);
 
@@ -54,7 +54,7 @@ export function DynamicViewTree(p: DynamicViewTreeProps) {
 
     p.rootNode.context.setSelectedNode(n);
     setContextualMenu({
-      position: ContextMenu.getMouseEventPosition(e)
+      position: getMouseEventPosition(e)
     });
   }
 
@@ -192,7 +192,7 @@ export interface DynamicViewNodeProps {
   dynamicTreeView: DynamicViewTreeHandle;
 }
 
-export function DynamicViewNode(p: DynamicViewNodeProps) {
+export function DynamicViewNode(p: DynamicViewNodeProps): React.JSX.Element {
 
 
   const [isOpened, setIsOpened] = React.useState<boolean>(true);

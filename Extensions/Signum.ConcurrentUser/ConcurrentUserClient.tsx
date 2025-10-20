@@ -12,7 +12,7 @@ import { ChangeLogClient } from '@framework/Basics/ChangeLogClient'
 
 export namespace ConcurrentUserClient {
   
-  export function start(options: { routes: RouteObject[], activatedFor?: (e: Entity) => boolean }) {
+  export function start(options: { routes: RouteObject[], activatedFor?: (e: Entity) => boolean }): void {
   
     ChangeLogClient.registerChangeLogModule("Signum.ConcurrentUser", () => import("./Changelog"));
   
@@ -29,7 +29,9 @@ export namespace ConcurrentUserClient {
   
       if (isEntity(me) && !me.isNew && activatedFor(me)) {
         const entity = me;
-        return <ConcurrentUser entity={entity} onReload={() =>
+        return <ConcurrentUser entity={entity}
+          isExecuting={ctx.frame.isExecuting()}
+          onReload={() =>
           Navigator.API.fetchEntityPack(toLite(entity))
             .then(pack => ctx.frame.onReload(pack))} />;
       }
@@ -38,7 +40,7 @@ export namespace ConcurrentUserClient {
     });
   }
   
-  export module API {
+  export namespace API {
     export function getUsers(key: string): Promise<ConcurrentUserResponse[]> {
       return ajaxGet({ url: "/api/concurrentUser/getUsers/" + key});
     }
