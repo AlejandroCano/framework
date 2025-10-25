@@ -1,9 +1,9 @@
 import { COMMAND_PRIORITY_NORMAL, KEY_DOWN_COMMAND } from "lexical";
-import { HtmlEditorController } from "../HtmlEditorController";
+import { LexicalHtmlEditorController } from "../LexicalHtmlEditorController";
 import { HtmlEditorExtension } from "./types";
 
 export class BasicCommandsExtensions implements HtmlEditorExtension {
-  registerExtension(controller: HtmlEditorController): () => void {
+  registerExtension(controller: LexicalHtmlEditorController): () => void {
     return controller.editor.registerCommand(
       KEY_DOWN_COMMAND,
       (event) => {

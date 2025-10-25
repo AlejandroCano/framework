@@ -1,5 +1,4 @@
 import { IBinding } from "@framework/Reflection";
-import { LexicalEditor } from "lexical";
 import React from "react";
 import { BasicCommandsExtensions } from "./Extensions/BasicCommandsExtension";
 import { CodeBlockExtension } from "./Extensions/CodeBlockExtension";
@@ -15,21 +14,10 @@ import {
   ITextConverter,
 } from "./HtmlContentStateConverter";
 import { HtmlEditorProps } from "./HtmlEditor";
-import { HtmlEditorController } from "./HtmlEditorController";
+import { HtmlEditorController, HtmlEditorControllerProps } from "./HtmlEditorController";
 import { useRegisterExtensions } from "./useRegisterExtensions";
 import { useRegisterKeybindings } from "./useRegisterKeybindings";
-
-type ControllerProps = {
-  binding: IBinding<string | null | undefined>;
-  editableId: string;
-  readOnly?: boolean;
-  small?: boolean;
-  converter?: ITextConverter;
-  innerRef?: React.Ref<LexicalEditor>;
-  plugins?: HtmlEditorExtension[];
-  initiallyFocused?: boolean | number;
-  handleKeybindings?: HtmlEditorProps['handleKeybindings'];
-};
+import { Options } from "./HtmlEditorClient";
 
 type ControllerReturnType = {
   controller: HtmlEditorController;
@@ -37,21 +25,39 @@ type ControllerReturnType = {
   builtinComponents: ComponentAndProps[];
 };
 
-export const useController = ({
-  binding,
-  readOnly,
-  small,
-  converter,
-  innerRef,
-  plugins,
-  initiallyFocused,
-  handleKeybindings,
-  editableId
-}: ControllerProps): ControllerReturnType => {
-  const controller = React.useMemo(() => new HtmlEditorController(), []);
+export const useController = (p: HtmlEditorControllerProps): ControllerReturnType => {
+  const {
+    binding,
+    editableId,
+    readOnly,
+    small,
+    converter,
+    innerRef,
+    plugins,
+    initiallyFocused,
+    handleKeybindings
+  } = p;
+
+  const factory = Options.ControllerFactory;
+
+  const controller = React.useMemo(() => {
+
+    const ctrlr = factory ? factory() : null;
+
+    if (!ctrlr) {
+      const lexicalModule = require("./LexicalHtmlEditorController") as typeof import("./LexicalHtmlEditorController");
+      ctrlr = new lexicalModule.LexicalHtmlEditorController();      
+    }
+
+//    ctrlr!.init(p)
+
+    return ctrlr!;
+
+  }, [factory]);
+
   const textConverter = converter ?? new HtmlContentStateConverter();
 
-  const extensions: HtmlEditorExtension[] = React.useMemo(() => {
+  const extensions: HtmlEditorExtension[] = factory ? [] : React.useMemo(() => {
     const defaultPlugins = [
       new BasicCommandsExtensions(),
       new ListExtension(),
@@ -59,33 +65,42 @@ export const useController = ({
       new CodeBlockExtension(),
     ];
 
-    if (!plugins) {
-      return defaultPlugins;
-    }
-
-    return [...defaultPlugins, ...plugins];
-  }, [plugins, controller]);
+    return plugins ? [...defaultPlugins, ...plugins] : defaultPlugins;
+  }, [plugins]);
 
   React.useEffect(() => {
-    if (!controller.editor) return;
 
-    controller.editor.setEditable(!readOnly);
-  }, [controller.editor, readOnly]);
+    if (!controller?.editor)
+      return;
 
-  useRegisterExtensions(controller, extensions);
+    if (typeof controller.editor.setEditable === "function")
+      controller.editor.setEditable(!readOnly);
 
-  useRegisterKeybindings(controller, handleKeybindings);
+  }, [controller, readOnly]);
 
-  controller.init({
+  // Move controller initialization (side-effect) into useEffect to avoid mutating during render.
+  React.useEffect(() => {
+    if (!controller)
+      return;
+
+    controller.init({
+      ...p,
+      converter: textConverter,
+      plugins: extensions,
+    });
+    // Intentionally not returning a cleanup because controller lifecycle is managed elsewhere.
+    // Depend on values that affect init to re-run if they change.
+  }, [
+    controller,
+    textConverter,
+    extensions,
     binding,
-    readOnly,
+    editableId,
     small,
-    converter: textConverter,
     innerRef,
     initiallyFocused,
-    plugins: extensions,
-    editableId
-  });
+    handleKeybindings
+  ]); 
 
   const nodes = React.useMemo(() => {
     return extensions.flatMap((plugin) => plugin.getNodes?.() ?? []);

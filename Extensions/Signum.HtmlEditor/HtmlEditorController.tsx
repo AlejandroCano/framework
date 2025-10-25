@@ -1,11 +1,8 @@
+import * as React from "react";
 import { IBinding } from "@framework/Reflection";
-import { $getRoot, EditorState } from "lexical";
-import { LexicalEditor } from "lexical/LexicalEditor";
-import React from "react";
 import { HtmlEditorExtension } from "./Extensions/types";
-import { ITextConverter } from "./HtmlContentStateConverter";
+import { ITextConverter, HtmlContentStateConverter } from "./HtmlContentStateConverter";
 import { Separator } from "./HtmlEditorButtons";
-import { isEmpty } from "./Utils/editorState";
 
 export interface HtmlEditorControllerProps {
   binding: IBinding<string | null | undefined>;
@@ -13,15 +10,22 @@ export interface HtmlEditorControllerProps {
   readOnly?: boolean;
   small?: boolean;
   converter: ITextConverter;
+  innerRef?: React.Ref<any>;
   plugins?: HtmlEditorExtension[];
-  innerRef?: React.Ref<LexicalEditor>;
   initiallyFocused?: boolean | number;
+  // allow controllers to receive keybinding handler
+  handleKeybindings?: (event: KeyboardEvent) => boolean;
 }
 
-export class HtmlEditorController {
-  editor!: LexicalEditor;
+/**
+ * Base abstract controller.
+ * Subclasses should implement `init` and `saveHtml` according to the concrete editor.
+ */
+export abstract class HtmlEditorController {
+  // Editor instance (concrete type provided by subclass)
+  editor: any;
   editableElement: HTMLElement | null = null;
-  editorState!: EditorState;
+  editorState: any;
 
   overrideToolbar!: React.ReactElement | undefined;
   setOverrideToolbar!: (newState: React.ReactElement | undefined) => void;
@@ -33,101 +37,24 @@ export class HtmlEditorController {
   small?: boolean;
   initialEditorContent?: string;
 
-  lastSavedString?: { str: string | null }
+  lastSavedString?: { str: string | null };
 
-  init(p: HtmlEditorControllerProps): void {
-    this.binding = p.binding;
-    this.readOnly = p.readOnly;
-    this.small = p.small;
-    this.converter = p.converter;
-    this.plugins = p.plugins ?? [];
-    this.editableElement = document.getElementById(p.editableId);
+  /**
+   * Initialize controller lifecycle. Implemented by subclasses.
+   * `p.plugins` contains the computed `extensions` array from useController.
+   */
+  abstract init(p: HtmlEditorControllerProps): void;
 
-    [this.overrideToolbar, this.setOverrideToolbar] =
-      React.useState<React.ReactElement | undefined>(undefined);
-
-    React.useEffect(() => {
-      if (p.initiallyFocused) {
-        window.setTimeout(
-          () => {
-            if (this.editor) this.editor.focus();
-          },
-          p.initiallyFocused == true ? 0 : (p.initiallyFocused as number)
-        );
-      }
-    }, []);
-
-    const newValue = this.binding.getValue();
-    React.useEffect(() => {
-      if (!this.editor)
-        return;
-
-      if (this.lastSavedString && this.lastSavedString.str === newValue) {
-        this.lastSavedString = undefined;
-        return;
-      }
-      
-      const newState = this.converter.$convertFromText(this.editor, newValue ||'');
-       
-      queueMicrotask(() => {
-        if(newState.isEmpty()) {
-          this.editor.update(() => {
-            $getRoot().clear();
-          })
-        } else {
-          this.editor.setEditorState(newState);
-        }
-        const htmlString = this.converter.$convertToText(this.editor);
-        this.initialEditorContent = htmlString;
-      })
-    }, [newValue, this.editor]);
-
-    React.useEffect(() => {
-      return () => this.saveHtml();
-    }, []);
-
-    this.setRefs = React.useCallback(
-      (editor: LexicalEditor | null) => {
-        this.editor = editor!;
-        if (p.innerRef) {
-          if (typeof p.innerRef == "function") {
-            p.innerRef(editor);
-          } else {
-            (p.innerRef as React.MutableRefObject<LexicalEditor | null>).current = editor;
-          }
-        }
-      },
-      [p.innerRef]
-    );
-  }
-
-  saveHtml(): void {
-    if (this.readOnly) return;
-    
-    const newContentString = this.converter.$convertToText(this.editor);
-    
-    if (newContentString !== this.initialEditorContent) {
-      const value = isEmpty(this.editorState) ? null : newContentString;
-      this.lastSavedString = { str: value };
-      this.binding.setValue(value);
-    }
-  }
 
   extraButtons(): React.ReactElement | null {
-    const buttons = this.plugins
+    const buttons = (this.plugins ?? [])
       .map((p) => p.getToolbarButtons?.(this))
       .notNull();
 
-    if (buttons.length == 0)
-      return null;
+    if (buttons.length == 0) return null;
 
-    return React.createElement(
-      React.Fragment,
-      undefined,
-      <Separator />,
-      ...buttons
-    );
+    return React.createElement(React.Fragment, undefined, <Separator/>, ...buttons);
   }
 
-  setRefs!: (editor: LexicalEditor | null) => void;
+  setRefs!: (editor: any | null) => void;
 }

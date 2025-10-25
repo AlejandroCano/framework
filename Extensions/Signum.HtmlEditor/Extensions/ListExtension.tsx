@@ -15,6 +15,7 @@ import {
   LexicalConfigNode,
   OptionalCallback
 } from "./types";
+import { LexicalHtmlEditorController } from "../LexicalHtmlEditorController";
 
 const MAX_INDENT_LEVEL = 6;
 
@@ -27,7 +28,7 @@ export class ListExtension implements HtmlEditorExtension {
     return [ListNode, ListItemNode];
   }
 
-  registerExtension(controller: HtmlEditorController): OptionalCallback {
+  registerExtension(controller: LexicalHtmlEditorController): OptionalCallback {
     const unsubscribeSpaceCommand = controller.editor.registerCommand(KEY_SPACE_COMMAND, () => {
       const selection = $getSelection();
      

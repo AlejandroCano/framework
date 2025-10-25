@@ -27,6 +27,7 @@ import { isEmpty } from "./Utils/editorState";
 import { formatCode, formatHeading, formatList, formatQuote } from "./Utils/format";
 import { $findMatchingParent, isHeadingActive, isListActive, isQuoteActive } from "./Utils/node";
 import { useForceUpdate } from "../../Signum/React/Hooks";
+import { Options } from "./HtmlEditorClient";
 
 export interface HtmlEditorProps {
   binding: IBinding<string | null | undefined>;
@@ -34,14 +35,25 @@ export interface HtmlEditorProps {
   small?: boolean;
   mandatory?: boolean | "warning";
   converter?: ITextConverter;
-  innerRef?: React.Ref<LexicalEditor>;
+  innerRef?: React.Ref<any>;
   plugins?: HtmlEditorExtension[];
   handleKeybindings?: (event: KeyboardEvent) => boolean;
-  toolbarButtons?: (c: HtmlEditorController) => React.ReactElement | React.ReactFragment | null;
+  toolbarButtons?: (
+    c: HtmlEditorController
+  ) => React.ReactElement | React.ReactFragment | null;
   htmlAttributes?: React.HTMLAttributes<HTMLDivElement>;
   initiallyFocused?: boolean | number;
-  onEditorFocus?: (e: React.FocusEvent, controller: HtmlEditorController) => void;
-  onEditorBlur?: (e: React.FocusEvent, controller: HtmlEditorController) => void;
+  onEditorFocus?: (
+    e: React.FocusEvent,
+    controller: HtmlEditorController
+  ) => void;
+  onEditorBlur?: (
+    e: React.FocusEvent,
+    controller: HtmlEditorController
+  ) => void;
+
+  editorConfig?: any;
+  editorToolbar?: React.ReactNode;
 }
 
 const createUid = () => Math.random().toString(36).substring(2, 9);
@@ -59,12 +71,15 @@ const HtmlEditor: React.ForwardRefExoticComponent<HtmlEditorProps & React.RefAtt
     mandatory,
     initiallyFocused,
     handleKeybindings,
+    editorConfig,
+    editorToolbar,
     ...props }: HtmlEditorProps,
   ref?: React.Ref<HtmlEditorController>
 ) {
   const forceUpdate = useForceUpdate();
   const id = React.useMemo(() => createUid(), []);
   const editableId = "editable_" + id;
+
   const { controller, nodes, builtinComponents } = useController({
     binding,
     readOnly,
@@ -81,10 +96,12 @@ const HtmlEditor: React.ForwardRefExoticComponent<HtmlEditorProps & React.RefAtt
 
   const error = binding.getError();
 
+  const factory = Options.EditorFactory;
+
   return (
     <div
       title={error}
-      onClick={() => controller.editor?.focus()}
+      onClick={() => controller.editor?.focus?.()}
       {...htmlAttributes}
       className={classes(
         "sf-html-editor",
@@ -94,40 +111,56 @@ const HtmlEditor: React.ForwardRefExoticComponent<HtmlEditorProps & React.RefAtt
         htmlAttributes?.className
       )}
     >
-      <LexicalComposer
-        initialConfig={{
-          namespace: "HtmlEditor_" + id,
-          nodes: [HeadingNode, QuoteNode, ...nodes!],
-          theme: LexicalTheme,
-          onError: (error) => console.error(error),
-          editable: !readOnly
-        }}
-      >
-        {
-          controller.overrideToolbar ? <div className="sf-draft-toolbar">{controller.overrideToolbar}</div> :
-            toolbarButtons ? toolbarButtons(controller) :
-              controller.readOnly || controller.small ? null :
-                defaultToolbarButtons(controller)
-        }
-        <RichTextPlugin
-          contentEditable={
-            <ContentEditable
-              id={editableId}
-              className="public-DraftEditor-content"
-              onFocus={(event: React.FocusEvent) => {
-                props.onEditorFocus?.(event, controller);
-              }}
-              onBlur={(event: React.FocusEvent) => {
-                props.onEditorBlur?.(event, controller);
-                controller.saveHtml();
-              }}
-            />
+      {factory ? (
+        <>
+          {editorToolbar ? <div className="sf-draft-toolbar">{editorToolbar}</div> : null}
+          {factory({
+            binding,
+            readOnly,
+            small,
+            config: editorConfig,
+            onEditorFocus: (e) => props.onEditorFocus?.(e as any, controller),
+            onEditorBlur: (e) => props.onEditorBlur?.(e as any, controller),
+            innerRef,
+            controller
+          })}
+        </>
+      ) : (
+        <LexicalComposer
+          initialConfig={{
+            namespace: "HtmlEditor_" + id,
+            nodes: [HeadingNode, QuoteNode, ...nodes!],
+            theme: LexicalTheme,
+            onError: (error) => console.error(error),
+            editable: !readOnly
+          }}
+        >
+          {
+            controller.overrideToolbar ? <div className="sf-draft-toolbar">{controller.overrideToolbar}</div> :
+              toolbarButtons ? toolbarButtons(controller) :
+                controller.readOnly || controller.small ? null :
+                  defaultToolbarButtons(controller)
           }
-          ErrorBoundary={LexicalErrorBoundary}
-        />
-        <EditorRefPlugin editorRef={comp => { controller.setRefs(comp); if (comp) forceUpdate(); }} />
-        {builtinComponents.map(({ component: Component, props }) => <Component key={Component.name} {...props} />)}
-      </LexicalComposer>
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                id={editableId}
+                className="public-DraftEditor-content"
+                onFocus={(event: React.FocusEvent) => {
+                  props.onEditorFocus?.(event, controller);
+                }}
+                onBlur={(event: React.FocusEvent) => {
+                  props.onEditorBlur?.(event, controller);
+                  controller.saveHtml();
+                }}
+              />
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+          <EditorRefPlugin editorRef={comp => { controller.setRefs(comp); if (comp) forceUpdate(); }} />
+          {builtinComponents.map(({ component: Component, props }) => <Component key={Component.name} {...props} />)}
+        </LexicalComposer>
+      )}
     </div>
   );
 });

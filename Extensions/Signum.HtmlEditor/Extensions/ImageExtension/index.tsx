@@ -3,11 +3,12 @@ import { HtmlEditorController } from "../../HtmlEditorController";
 import { HtmlEditorExtension, LexicalConfigNode, OptionalCallback } from "../types";
 import { ImageConverter } from "./ImageConverter";
 import { $createImageNode, ImageNode } from "./ImageNode";
+import { LexicalHtmlEditorController } from "../../LexicalHtmlEditorController";
 
 export class ImageExtension<T extends object = {}> implements HtmlEditorExtension {
   constructor(public imageConverter: ImageConverter<T>) {}
 
-  registerExtension(controller: HtmlEditorController): OptionalCallback {
+  registerExtension(controller: LexicalHtmlEditorController): OptionalCallback {
     const abortController = new AbortController();
     const element = controller.editableElement;
 
@@ -70,7 +71,7 @@ export class ImageExtension<T extends object = {}> implements HtmlEditorExtensio
     });
   }
 
-  replaceImagePlaceholders(controller: HtmlEditorController): void {
+  replaceImagePlaceholders(controller: LexicalHtmlEditorController): void {
     const attachments = (() => {
       const binding = controller.binding;
       if('parentObject' in binding) {

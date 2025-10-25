@@ -1,7 +1,7 @@
 import { $isLinkNode, AutoLinkNode, LinkNode } from "@lexical/link";
 import { AutoLinkPlugin, LinkMatcher } from "@lexical/react/LexicalAutoLinkPlugin";
 import { $getSelection, $isRangeSelection, CLICK_COMMAND, COMMAND_PRIORITY_EDITOR } from "lexical";
-import { HtmlEditorController } from "../../HtmlEditorController";
+import { LexicalHtmlEditorController } from "../../LexicalHtmlEditorController";
 import { $findMatchingParent } from "../../Utils/node";
 import { ComponentAndProps, HtmlEditorExtension, LexicalConfigNode, OptionalCallback } from "../types";
 import { urlRegExp } from "./helper";
@@ -30,7 +30,7 @@ export class AutoLinkExtension implements HtmlEditorExtension {
       return [AutoLinkNode]
   }
 
-  registerExtension(controller: HtmlEditorController): OptionalCallback {
+  registerExtension(controller: LexicalHtmlEditorController): OptionalCallback {
     return controller.editor.registerCommand(CLICK_COMMAND, (event) => {
       if(!event.ctrlKey) return false;
       const selection = $getSelection();

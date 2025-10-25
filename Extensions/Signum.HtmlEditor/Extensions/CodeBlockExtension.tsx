@@ -5,9 +5,10 @@ import {
   LexicalConfigNode,
   OptionalCallback
 } from "./types";
+import { LexicalHtmlEditorController } from "../LexicalHtmlEditorController";
 
 export class CodeBlockExtension implements HtmlEditorExtension {
-  registerExtension(controller: HtmlEditorController): OptionalCallback {
+  registerExtension(controller: LexicalHtmlEditorController): OptionalCallback {
       return registerCodeHighlighting(controller.editor);
   }
 

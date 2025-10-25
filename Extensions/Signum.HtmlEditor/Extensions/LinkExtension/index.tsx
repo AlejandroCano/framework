@@ -8,6 +8,7 @@ import { ComponentAndProps, HtmlEditorExtension, LexicalConfigNode, OptionalCall
 import { AutoLinkExtension } from "./AutoLinkExtension";
 import ToolbarLinkButton from './ToolbarLinkButton';
 import { validateUrl } from './helper';
+import { LexicalHtmlEditorController } from "../../LexicalHtmlEditorController";
 
 export class LinkExtension implements HtmlEditorExtension {
   getToolbarButtons(controller: HtmlEditorController): React.ReactNode {
@@ -22,7 +23,7 @@ export class LinkExtension implements HtmlEditorExtension {
       return [LinkNode]
   }
 
-  registerExtension(controller: HtmlEditorController): OptionalCallback {
+  registerExtension(controller: LexicalHtmlEditorController): OptionalCallback {
     return controller.editor.registerCommand(CLICK_COMMAND, (event) => {
       if(!event.ctrlKey) return false;
       const selection = $getSelection();
