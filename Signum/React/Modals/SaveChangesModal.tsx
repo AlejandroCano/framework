@@ -19,7 +19,7 @@ interface SaveChangesModalProps extends IModalProps<SaveChangesResult | undefine
   eocs: EntityOperationContext<any>[];
 }
 
-function SaveChangesModal(p: SaveChangesModalProps): React.JSX.Element {
+function SaveChangesModal(p: SaveChangesModalProps): React.ReactElement {
 
   const [show, setShow] = React.useState(true);
 
@@ -54,12 +54,14 @@ function SaveChangesModal(p: SaveChangesModalProps): React.JSX.Element {
         <div className="btn-toolbar">
           {p.eocs.map(eoc => <OperationButton key={eoc.operationInfo.key} eoc={eoc} avoidAlternatives onOperationClick={async () => handleButtonClicked(eoc)} />)}
           <button
+            type="button"
             className="btn btn-secondary sf-close-button sf-no-button"
             onClick={() => handleButtonClicked("loseChanges")}
             name="no">
-            <FontAwesomeIcon icon={"arrow-rotate-left"} />&nbsp;{SaveChangesMessage.LoseChanges.niceToString()}
+            <FontAwesomeIcon aria-hidden={true} icon={"arrow-rotate-left"} />&nbsp;{SaveChangesMessage.LoseChanges.niceToString()}
           </button>
           <button
+            type="button"
             className="btn btn-secondary sf-close-button sf-cancel-button"
             onClick={() => handleButtonClicked("cancel")}
             name="cancel">

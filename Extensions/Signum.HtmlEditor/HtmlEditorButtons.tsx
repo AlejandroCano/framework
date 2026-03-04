@@ -30,10 +30,11 @@ export function HtmlEditorButton(p: {
     >
       <button
         className={classes("sf-draft-button", p.isActive && "sf-draft-active ")}
+        type="button"
         onClick={p.onClick}
         title={p.title}
       >
-        {p.content ?? <FontAwesomeIcon icon={p.icon!} />}
+        {p.content ?? <FontAwesomeIcon aria-hidden={true} icon={p.icon!} />}
       </button>
     </div>
   );
@@ -47,7 +48,7 @@ type InlineStyleButtonProps = {
   controller: HtmlEditorController;
   style: TextFormatType;
   icon?: IconProp;
-  content?: React.ReactChild;
+  content?: React.ReactNode;
   title?: string;
 };
 
@@ -96,7 +97,7 @@ type BlockStyleButtonProps = {
   controller: HtmlEditorController;
   blockType: string;
   icon?: IconProp;
-  content?: React.ReactChild;
+  content?: React.ReactNode;
   title?: string;
   isActiveFn: (selection: RangeSelection, blockType: string) => boolean;
   onClick: (editor: LexicalEditor) => void;
@@ -141,7 +142,7 @@ export function BlockStyleButton({
 export function SubMenuButton(p: {
   controller: HtmlEditorController;
   icon?: IconProp;
-  content?: React.ReactChild;
+  content?: React.ReactNode;
   title?: string;
   children: React.ReactNode;
 }): React.JSX.Element {

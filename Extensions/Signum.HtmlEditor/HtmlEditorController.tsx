@@ -1,6 +1,6 @@
 import { IBinding } from "@framework/Reflection";
 import { $getRoot, EditorState } from "lexical";
-import { LexicalEditor } from "lexical/LexicalEditor";
+import { LexicalEditor } from "lexical";
 import React from "react";
 import { HtmlEditorExtension } from "./Extensions/types";
 import { ITextConverter } from "./HtmlContentStateConverter";
@@ -20,7 +20,7 @@ export interface HtmlEditorControllerProps {
 
 export class HtmlEditorController {
   editor!: LexicalEditor;
-  editableElement: HTMLElement | null = null;
+  editableElement: HTMLDivElement | null = null;
   editorState!: EditorState;
 
   overrideToolbar!: React.ReactElement | undefined;
@@ -41,7 +41,6 @@ export class HtmlEditorController {
     this.small = p.small;
     this.converter = p.converter;
     this.plugins = p.plugins ?? [];
-    this.editableElement = document.getElementById(p.editableId);
 
     [this.overrideToolbar, this.setOverrideToolbar] = React.useState<
       React.ReactElement | undefined
@@ -66,37 +65,46 @@ export class HtmlEditorController {
         this.lastSavedString = undefined;
         return;
       }
-
-      
-      const newState = this.converter.$convertFromText(this.editor, newValue ||'');
-       
+     
       queueMicrotask(() => {
-        if(newState.isEmpty()) {
+        const newState = this.converter.$convertFromText(this.editor, newValue || '');
+
+        if (newState.isEmpty()) {
           this.editor.update(() => {
             $getRoot().clear();
-          })
+          });
         } else {
           this.editor.setEditorState(newState);
         }
+
         const htmlString = this.converter.$convertToText(this.editor);
         this.initialEditorContent = htmlString;
-      })
+      });
+
     }, [newValue, this.editor]);
 
     React.useEffect(() => {
       return () => this.saveHtml();
     }, []);
 
-    this.setRefs = React.useCallback(
+    this.setEditorRef = React.useCallback(
       (editor: LexicalEditor | null) => {
         this.editor = editor!;
         if (p.innerRef) {
-          if (typeof p.innerRef == "function") p.innerRef(editor);
+          if (typeof p.innerRef == "function")
+            p.innerRef(editor);
           else
             (
               p.innerRef as React.MutableRefObject<LexicalEditor | null>
             ).current = editor;
         }
+      },
+      [p.innerRef]
+    );
+
+    this.setContentEditableRef = React.useCallback(
+      (element: HTMLDivElement | null) => {
+        this.editableElement = element!;
       },
       [p.innerRef]
     );
@@ -129,5 +137,6 @@ export class HtmlEditorController {
     );
   }
 
-  setRefs!: (editor: LexicalEditor | null) => void;
+  setEditorRef!: (editor: LexicalEditor | null) => void;
+  setContentEditableRef!: (editor: HTMLDivElement | null) => void;
 }

@@ -21,7 +21,7 @@ interface ModalHeaderButtonsProps {
   stickyHeader?: boolean;
 }
 
-export function ModalHeaderButtons(p: ModalHeaderButtonsProps): React.JSX.Element {
+export function ModalHeaderButtons(p: ModalHeaderButtonsProps): React.ReactElement {
 
   var close = p.onClose &&
     <button type="button" className="btn-close" aria-label="Close" onClick={p.onClose}/>
@@ -49,7 +49,7 @@ interface ModalFooterButtonsProps {
 }
 
 
-export function ModalFooterButtons(p: ModalFooterButtonsProps): React.JSX.Element {
+export function ModalFooterButtons(p: ModalFooterButtonsProps): React.ReactElement {
 
   return (
     <div className="modal-footer" {...p.htmlAttributes}>
@@ -59,13 +59,17 @@ export function ModalFooterButtons(p: ModalFooterButtonsProps): React.JSX.Elemen
       {(p.onCancel || p.onOk) &&
         <div className="btn-toolbar" style={{ flexWrap: "nowrap" }}>
           {p.onOk && <button
+            type="button"
             className={classes("btn", "btn-" + (p.okButtonProps?.color ?? "primary"), "sf-entity-button sf-close-button sf-ok-button", p.okButtonProps?.classes)}
-            disabled={p.okDisabled} onClick={p.onOk}>
+            disabled={p.okDisabled}
+            aria-disabled={p.okDisabled}
+            onClick={p.onOk}>
             {renderButton(JavascriptMessage.ok.niceToString(), p.okButtonProps)}
           </button>
           }
           {p.onCancel && <button
-          className={classes("btn", "btn-" + (p.cancelButtonProps?.color ?? "light"), "sf-entity-button sf-close-button sf-cancel-button", p.cancelButtonProps?.classes)}
+            type="button"
+            className={classes("btn", "btn-" + (p.cancelButtonProps?.color ?? "light"), "sf-entity-button sf-close-button sf-cancel-button", p.cancelButtonProps?.classes)}
             onClick={p.onCancel}>
           {renderButton(JavascriptMessage.cancel.niceToString(), p.cancelButtonProps)}
           </button>
@@ -78,8 +82,8 @@ export function ModalFooterButtons(p: ModalFooterButtonsProps): React.JSX.Elemen
   function renderButton(text: string, mip?: ModalIconProps) {
     if (mip?.icon) {
       switch (mip.iconAlign) {
-        case "right": return (<span>{text} <FontAwesomeIcon icon={mip.icon} fixedWidth /></span>);
-        default: return (<span><FontAwesomeIcon icon={mip.icon} fixedWidth /> {text}</span>);
+        case "right": return (<span>{text} <FontAwesomeIcon aria-hidden={true} icon={mip.icon} className="fa-fw" /></span>);
+        default: return (<span><FontAwesomeIcon aria-hidden={true} icon={mip.icon} className="fa-fw" /> {text}</span>);
       }
     }
     else

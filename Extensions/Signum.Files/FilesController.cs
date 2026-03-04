@@ -1,10 +1,10 @@
+using Azure.Core;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System.IO;
+using Microsoft.Net.Http.Headers;
 using Signum.Utilities.Reflection;
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Reflection.Metadata.Ecma335;
-using Azure.Core;
+using System.IO;
 
 namespace Signum.Files;
 
@@ -24,7 +24,7 @@ public class FilesController : ControllerBase
     {
         var filePath = Database.Retrieve<FilePathEntity>(PrimaryKey.Parse(filePathId, typeof(FilePathEntity)));
 
-   		Response.Headers.CacheControl = $"max-age={FilePathLogic.MaxAge(filePath)}, private";
+        Response.GetTypedHeaders().CacheControl = FilesCacheControl(filePath);
 
         return MimeMapping.GetFileStreamResult(filePath.OpenRead(), filePath.FileName);
     }
@@ -53,10 +53,16 @@ public class FilesController : ControllerBase
         if (fpe == null)
             return null;
 
-    	Response.Headers.CacheControl = $"max-age={FilePathLogic.MaxAge(fpe)}, private";
+        Response.GetTypedHeaders().CacheControl = FilesCacheControl(fpe);
 
-        return MimeMapping.GetFileStreamResult(fpe.OpenRead(), fpe.FileName);
+        return MimeMapping.GetFileStreamResult(fpe.OpenRead(), fpe.FileName);   
     }
+
+    private static CacheControlHeaderValue FilesCacheControl(IFilePath fpe) => new()
+    {
+        Private = true,
+        MaxAge = TimeSpan.FromSeconds(FilePathLogic.MaxAge(fpe))
+    };
 
     static ConcurrentDictionary<PropertyRoute, Func<PrimaryKey, string?, FilePathEmbedded?>> queryBuilderCache = 
         new ConcurrentDictionary<PropertyRoute, Func<PrimaryKey, string?, FilePathEmbedded?>>();
@@ -97,17 +103,13 @@ public class FilesController : ControllerBase
     }
 
     [HttpPost("api/files/startUpload")]
-    public async Task<string> StartUpload([FromBody] StartUploadRequest request)
+    public async Task<StartUploadResponse> StartUpload([FromBody] StartUploadRequest request, CancellationToken token)
     {
         var fileType = SymbolLogic<FileTypeSymbol>.ToSymbol(request.FileTypeKey);
-
         var algorithm = FileTypeLogic.GetAlgorithm(fileType);
-
         IFilePath fpe = CreateEmptyFile(request.Type, fileType, request.FileName, null);
-
-        await algorithm.StartUpload(fpe);
-
-        return fpe.Suffix;
+        var uploadId = await algorithm.StartUpload(fpe, token);
+        return new StartUploadResponse { Suffix = fpe.Suffix, UploadId = uploadId };
     }
 
     public class StartUploadRequest
@@ -117,6 +119,12 @@ public class FilesController : ControllerBase
         public string Type { get; set; }
     }
 
+    public class StartUploadResponse
+    {
+        public string Suffix { get; set; }
+        public string? UploadId { get; set; }
+    }
+
     [HttpPost("api/files/uploadChunk")]
     public async Task<ChunkInfo> UploadChunk(
         [FromQuery] string fileName,
@@ -124,19 +132,16 @@ public class FilesController : ControllerBase
         [FromQuery] string suffix,
         [FromQuery] string type,
         [FromQuery] int chunkIndex,
+        [FromQuery] string? uploadId,
         CancellationToken token)
     {
         var fileType = SymbolLogic<FileTypeSymbol>.ToSymbol(fileTypeKey);
-
         var algorithm = FileTypeLogic.GetAlgorithm(fileType);
-
         IFilePath fpe = CreateEmptyFile(type, fileType, fileName, suffix);
-
         using MemoryStream ms = new MemoryStream();
-            await Request.Body.CopyToAsync(ms);
-
-        var chunkInfo = await algorithm.UploadChunk(fpe, chunkIndex, ms, token);
-
+        await Request.Body.CopyToAsync(ms, token);
+        ms.Position = 0;
+        var chunkInfo = await algorithm.UploadChunk(fpe, chunkIndex, ms, uploadId, token);
         return chunkInfo;
     }
 
@@ -156,16 +161,11 @@ public class FilesController : ControllerBase
     public async Task<FinishUploadResponse> FinishUpload([FromBody] FinishUploadRequest request, CancellationToken token)
     {
         var fileType = SymbolLogic<FileTypeSymbol>.ToSymbol(request.FileTypeKey);
-
         var algorithm = FileTypeLogic.GetAlgorithm(fileType);
-
         IFilePath fpe = CreateEmptyFile(request.Type, fileType, request.FileName, request.Suffix);
-
-        await algorithm.FinishUpload(fpe, request.Chunks, token);
-
+        await algorithm.FinishUpload(fpe, request.Chunks, request.UploadId, token);
         return new FinishUploadResponse { Hash = fpe.Hash!, FileLength = fpe.FileLength, FullWebPath = fpe.FullWebPath() };
     }
-
 
     public class FinishUploadRequest
     {
@@ -174,6 +174,7 @@ public class FilesController : ControllerBase
         public string Suffix { get; set; }
         public string Type { get; set; }
         public List<ChunkInfo> Chunks { get; set; }
+        public string? UploadId { get; set; }
     }
 
     public class FinishUploadResponse
@@ -181,5 +182,24 @@ public class FilesController : ControllerBase
         public long FileLength { get; set; }
         public string Hash { get; set; }
         public string? FullWebPath { get; internal set; }
+    }
+
+    [HttpPost("api/files/abortUpload")]
+    public async Task<IActionResult> AbortUpload([FromBody] AbortUploadRequest request, CancellationToken token)
+    {
+        var fileType = SymbolLogic<FileTypeSymbol>.ToSymbol(request.FileTypeKey);
+        var algorithm = FileTypeLogic.GetAlgorithm(fileType);
+        IFilePath fpe = CreateEmptyFile(request.Type, fileType, request.FileName, request.Suffix);
+        await algorithm.AbortUpload(fpe, request.UploadId, token);
+        return Ok();
+    }
+
+    public class AbortUploadRequest
+    {
+        public string FileTypeKey { get; set; }
+        public string FileName { get; set; }
+        public string Suffix { get; set; }
+        public string Type { get; set; }
+        public string? UploadId { get; set; }
     }
 }

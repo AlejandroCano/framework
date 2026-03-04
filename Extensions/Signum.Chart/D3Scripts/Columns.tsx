@@ -10,6 +10,8 @@ import { Rule } from './Components/Rule';
 import InitialMessage from './Components/InitialMessage';
 import type { ChartScriptHorizontalProps } from './Line';
 import TextIfFits from './Components/TextIfFits';
+import { ChartMessage, D3ChartScript } from '../Signum.Chart';
+import { symbolNiceName, getQueryNiceName } from '@framework/Reflection';
 
 
 export default function renderColumns({ data, width, height, parameters, loading, onDrillDown, initialLoad, chartRequest, memo, dashboardFilter }: ChartScriptProps): React.ReactElement<any> {
@@ -36,7 +38,7 @@ export default function renderColumns({ data, width, height, parameters, loading
     _1: 10,
     legend: 15,
     _2: 5,
-    _labelTopMargin: parameters["Labels"] == "Inside" ? labelsPadding + labelsMargin : 0,
+    _labelTopMargin: isInside ? labelsPadding + labelsMargin : 0,
     content: '*',
     ticks: 4,
     _3: isMargin ? labelsPadding : 0,
@@ -65,12 +67,17 @@ export default function renderColumns({ data, width, height, parameters, loading
     .domain(keyValues.map(v => keyColumn.getKey(v)))
     .range([0, xRule.size('content')]);
 
-  var y = scaleFor(valueColumn, data.rows.map(r => valueColumn.getValue(r)), 0, yRule.size('content') - (isInside ? labelsMargin + labelsPadding : 0), parameters["Scale"]);
+  var y = scaleFor(valueColumn, data.rows.map(r => valueColumn.getValue(r)), 0, yRule.size('content'), parameters["Scale"]);
 
   var detector = ChartClient.getActiveDetector(dashboardFilter, chartRequest);
 
   return (
-    <svg direction="ltr" width={width} height={height}>
+    <svg
+      direction="ltr"
+      width={width}
+      height={height}
+      role="img">
+      <title id="columnChartTitle">{ChartMessage._0Of1_2.niceToString(symbolNiceName(D3ChartScript.Columns), getQueryNiceName(chartRequest.queryKey), [valueColumn.title, keyColumn.title].join(", "))}</title>
       <g opacity={dashboardFilter ? .5 : undefined}>
         <XTitle xRule={xRule} yRule={yRule} keyColumn={keyColumn} />
         <YScaleTicks xRule={xRule} yRule={yRule} valueColumn={valueColumn} y={y} />
@@ -153,7 +160,15 @@ export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, paramet
                 height={height}
                 width={bandwidth}
                 fill={keyColumn.getValueColor(row) ?? color(key)}
+                role="button"
+                tabIndex={0}
                 cursor="pointer"
+                onKeyDown={(e: React.KeyboardEvent<SVGRectElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    (onclick as any)?.(e);
+                  }
+                }}
                 onClick={e => onDrillDown(row!, e)}>
                 <title>
                   {keyColumn.getValueNiceName(row) + ': ' + valueColumn.getValueNiceName(row)}
@@ -168,7 +183,6 @@ export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, paramet
                       fontWeight="bold"
                       fill={(keyColumn.getColor(k) ?? color(key))}
                       textAnchor="end"
-                      cursor="pointer"
                       onClick={e => onDrillDown({ c1: k }, e)}>
                       {keyColumn.getNiceName(k)}
                     </TextEllipsis>
@@ -183,8 +197,7 @@ export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, paramet
                         fill={(keyColumn.getColor(k) ?? color(key))}
                         dx={labelsPadding}
                         textAnchor={'start'}
-                        onClick={e => onDrillDown({ c0: k }, e)}
-                        cursor="pointer">
+                        onClick={e => onDrillDown({ c0: k }, e)}>
                         {keyColumn.getNiceName(k)}
                       </TextEllipsis>
                     </g> : null
@@ -199,7 +212,6 @@ export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, paramet
                     opacity={parameters["NumberOpacity"]}
                     textAnchor="middle"
                     fontWeight="bold"
-                    cursor="pointer"
                     onClick={e => onDrillDown(row!, e)}>
                     {valueColumn.getValueNiceName(row)}
                   </TextIfFits>

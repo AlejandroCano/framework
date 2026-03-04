@@ -216,9 +216,9 @@ export namespace Operations {
     export function getAlternatives<T extends Entity>(eoc: EntityOperationContext<T>): AlternativeOperationSetting<T>[] | undefined {
       if (Defaults.isSave(eoc.operationInfo)) {
         return [
-          EntityOperations.andClose(eoc),
+          eoc.frame.onClose ? EntityOperations.andClose(eoc) : undefined,
           EntityOperations.andNew(eoc)
-        ]
+        ].notNull()
       }
 
       return undefined;
@@ -474,7 +474,7 @@ export class ContextualOperationSettings<T extends Entity> extends OperationSett
   onClick?: (coc: ContextualOperationContext<T>) => Promise<void>;
   settersConfig?: (coc: ContextualOperationContext<T>) => SettersConfig;
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconColor?: string;
   order?: number;
 
@@ -495,7 +495,7 @@ export interface ContextualOperationOptions<T extends Entity> {
   createMenuItems?: (eoc: ContextualOperationContext<T>) => ContextualMenuItem[];
   settersConfig?: (coc: ContextualOperationContext<T>) => SettersConfig;
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconColor?: string;
   order?: number;
 }
@@ -509,7 +509,7 @@ export class ContextualOperationContext<T extends Entity> {
   canExecute?: string;
   isReadonly?: boolean;
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
 
   progressModalOptions?: Operations.API.OperationWithProgressOptions;
   event?: React.MouseEvent<any>;
@@ -520,7 +520,19 @@ export class ContextualOperationContext<T extends Entity> {
     return ContextualOperations.defaultContextualOperationClick(this, ...args);
   }
 
-  constructor(operationInfo: OperationInfo, context: ContextualItemsContext<T>, cos: ContextualOperationSettings<T> | undefined, eos?: EntityOperationSettings<T>) {
+  constructor(operationInfo: OperationInfo, context: ContextualItemsContext<T>) {
+
+    let cos: ContextualOperationSettings<T> | undefined = undefined;
+    let eos: EntityOperationSettings<T> | undefined = undefined;
+    if (operationInfo.operationType == "ConstructorFromMany") {
+      cos = Operations.getSettings(operationInfo.key) as ContextualOperationSettings<T> | undefined;
+    }
+    else {
+      eos = Operations.getSettings(operationInfo.key) as EntityOperationSettings<T> | undefined;
+      cos = eos == undefined ? undefined :
+        context.lites.length == 1 ? eos.contextual : eos.contextualFromMany
+    }
+
     this.operationInfo = operationInfo;
     this.context = context;
     this.settings = cos;
@@ -629,7 +641,7 @@ export class CellOperationSettings<T extends Entity> extends OperationSettings {
   hideOnCanExecute?: boolean;
   //showOnReadOnly?: boolean;
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconColor?: string;
   iconAlign?: "start" | "end";
   outline?: boolean;
@@ -652,7 +664,7 @@ export interface CellOperationOptions<T extends Entity> {
   hideOnCanExecute?: boolean;
   //showOnReadOnly?: boolean;
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconColor?: string;
   iconAlign?: "start" | "end";
   outline?: boolean;
@@ -677,7 +689,7 @@ export class CellOperationContext<T extends Entity> {
 
   text?: string;
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconColor?: string;
   iconAlign?: "start" | "end";
   outline?: boolean;
@@ -814,13 +826,13 @@ export class EntityOperationContext<T extends Entity> {
 
   onDeleteSuccess?: () => Promise<void> | undefined;
   onDeleteSuccess_Default = (): void => {
-    this.frame.onClose();
+    this.frame.onClose?.();
     Navigator.raiseEntityChanged(this.entity.Type);
     Operations.notifySuccess();
   }
 
   color?: BsColor;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   outline?: boolean;
   group?: EntityOperationGroup;
   keyboardShortcut?: KeyboardShortcut;
@@ -933,7 +945,7 @@ export interface AlternativeOperationSetting<T extends Entity> {
   text: string;
   color?: BsColor;
   classes?: string;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconAlign?: "start" | "end";
   iconColor?: string;
   isVisible?: boolean;
@@ -966,7 +978,7 @@ export class EntityOperationSettings<T extends Entity> extends OperationSettings
   color?: BsColor;
   outline?: boolean;
   classes?: string;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconAlign?: "start" | "end";
   iconColor?: string;
   alternatives?: (ctx: EntityOperationContext<T>) => AlternativeOperationSetting<T>[];
@@ -1004,7 +1016,7 @@ export interface EntityOperationOptions<T extends Entity> {
   color?: BsColor;
   outline?: boolean;
   classes?: string;
-  icon?: IconProp;
+  icon?: IconProp | React.ReactElement;
   iconAlign?: "start" | "end";
   iconColor?: string;
   keyboardShortcut?: KeyboardShortcut | null;

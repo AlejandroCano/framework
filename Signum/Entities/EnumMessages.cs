@@ -159,7 +159,8 @@ public enum EntityControlMessage
     [Description("{0} character[s]")]
     _0Characters,
     [Description("{0} character[s] remaining")]
-    _0CharactersRemaining
+    _0CharactersRemaining,
+    Close
 }
 
 public enum HtmlEditorMessage
@@ -168,6 +169,18 @@ public enum HtmlEditorMessage
     Hyperlink,
     [Description("Enter your url here...")]
     EnterYourUrlHere,
+    [Description("Bold (Ctrl + B)")]
+    Bold,
+    [Description("Italic (Ctrl + I)")]
+    Italic,
+    [Description("Underline (Ctrl + U)")]
+    Underline,
+    Headings,
+    UnorderedList,
+    OrderedList,
+    Quote,
+    CodeBlock,
+    Code,
 }
 
 [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
@@ -263,6 +276,7 @@ public enum SearchMessage
     PinnedFilter,
     Label,
     Column,
+    [Description("ColSpan")]
     ColSpan,
     Row,
     [Description("When pressed, the filter will take no effect if the value is null")]
@@ -350,7 +364,34 @@ public enum SearchMessage
     TimeMachine,
     Options,
 
-    SearchHelp,   
+    [Description("You have selected all rows on this page. Do you want to {0} only these rows, or to all rows across all pages?")]
+    YouHaveSelectedAllRowsOnThisPageDoYouWantTo0OnlyTheseRowsOrToAllRowsAcrossAllPages,
+
+    [Description("Current Page")]
+    CurrentPage,
+
+    [Description("All Pages")]
+    AllPages,
+
+    [Description("Filter-type Selection")]
+    FilterTypeSelection,
+    FilterMenu,
+    OperationsForSelectedElements,
+
+    PaginationMode,
+    NumberOfElementsForPagination,
+
+    SelectAllResults,
+    [Description("{0} Result Table")]
+    _0ResultTable,
+    [Description("Select row {0}")]
+    SelectRow0_,
+    Enter,
+}
+
+public enum SearchHelpMessage
+{
+    SearchHelp,
     SearchControl,
     [Description("The {0} is very powerful, but can be intimidating. Take some time to learn how to use it... will be worth it!")]
     The0IsVeryPowerfulButCanBeIntimidatingTakeSomeTimeToLearnHowToUseItWillBeWorthIt,
@@ -450,14 +491,6 @@ public enum SearchMessage
     [Description("Can be used as the first item, counts the number of rows on each group.")]
     CanBeUsedAsTheFirstItemCountsTheNumberOfRowsOnEachGroup,
 
-    [Description("You have selected all rows on this page. Do you want to {0} only these rows, or to all rows across all pages?")]
-    YouHaveSelectedAllRowsOnThisPageDoYouWantTo0OnlyTheseRowsOrToAllRowsAcrossAllPages,
-
-    [Description("Current Page")]
-    CurrentPage,
-
-    [Description("All Pages")]
-    AllPages,
 }
 
 public enum SelectorMessage
@@ -692,4 +725,13 @@ public enum ContainerToggleMessage
 {
     Compress,
     Expand,
+}
+
+[AllowUnauthenticated]
+public enum FontSizeMessage
+{
+    FontSize,
+    ReduceFontSize,
+    ResetFontSize,
+    IncreaseFontSize,
 }

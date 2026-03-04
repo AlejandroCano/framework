@@ -139,7 +139,7 @@ public static class SqlPreCommandExtensions
             var script = File.ReadAllText(fileName);
             using (var tr = Transaction.ForceNew(System.Data.IsolationLevel.Unspecified))
             {
-                ExecuteScript("script", script);
+                ExecuteScript("script", script, autoRun: false); 
                 tr.Commit();
             }
         }
@@ -150,7 +150,7 @@ public static class SqlPreCommandExtensions
                 if (SafeConsole.Ask("Execute without transaction?"))
                 {
                     var script = File.ReadAllText(fileName);
-                    ExecuteScript("script", script);
+                    ExecuteScript("script", script, autoRun: false);
                     return;
                 }
                 else
@@ -225,13 +225,15 @@ public static class SqlPreCommandExtensions
     }
 
 
-    public static void ExecuteScript(string title, string script)
+    public static void ExecuteScript(string title, string script, bool autoRun)
     {
         using (Connector.CommandTimeoutScope(Connector.ScopeTimeout ?? DefaultScriptTimeout))
         {
             List<KeyValuePair<string, string>> beginEndParts = ExtractBeginEndParts(ref script).ToList();
 
             string[] realParts = SplitGOs(script);
+
+            Schema.Current.ExecuteExecuteAs();
 
             if (Connector.Current is PostgreSqlConnector)
             {
@@ -311,7 +313,7 @@ public static class SqlPreCommandExtensions
                         var pgE = ex as PostgresException ?? ex.InnerException as PostgresException;
 
 
-                        var answer = allYes ? "yes" : SafeConsole.Ask("Continue anyway?", new[] { "yes", "no", "all yes", sqlE != null || pgE != null ? "+ exception details" : null }.NotNull().ToArray());
+                        var answer = autoRun || allYes ? "yes" : SafeConsole.Ask("Continue anyway?", new[] { "yes", "no", "all yes", sqlE != null || pgE != null ? "+ exception details" : null }.NotNull().ToArray());
                         if (answer == "+ exception details")
                         {
                             PrintExceptionLine(kvp.Value, ex, sqlE, pgE);
@@ -506,7 +508,12 @@ public class SqlPreCommandSimple : SqlPreCommand
             return Convert.ToInt32(value).ToString();
 
         if (value is byte[] bytes)
+        {
+            if(Schema.Current.Settings.IsPostgres)
+                return "'\\x" + BitConverter.ToString(bytes).Replace("-", "") + "'";
+
             return "0x" + BitConverter.ToString(bytes).Replace("-", "");
+        }
 
         if (value is IFormattable f)
             return f.ToString(null, CultureInfo.InvariantCulture);
@@ -738,3 +745,63 @@ public class SqlPreCommandConcat : SqlPreCommand
     }
 }
 
+public class SqlPreCommand_WithHistory : SqlPreCommand
+{
+    public SqlPreCommand? Normal;
+    public SqlPreCommand? History;
+
+    public SqlPreCommand_WithHistory(SqlPreCommand? normal, SqlPreCommand? history)
+    {
+        Normal = normal;
+        History = history;
+    }
+
+    public override bool HasNoTransaction => throw new NotImplementedException();
+
+    public override bool GoBefore { get; set; }
+    public override bool GoAfter { get; set; }
+
+    protected internal override int NumParameters => throw new NotImplementedException();
+
+    public override SqlPreCommand Clone() => throw new NotImplementedException();
+
+    public override IEnumerable<SqlPreCommandSimple> Leaves() => throw new NotImplementedException();
+
+    public override SqlPreCommand Replace(Regex regex, MatchEvaluator matchEvaluator)  => throw new NotImplementedException();
+
+    protected internal override void PlainSql(StringBuilder sb) => throw new NotImplementedException();
+
+    public static SqlPreCommand? ForNormal(SqlPreCommand? command)
+    {
+        if (command is null)
+            return null;
+
+        if (command is SqlPreCommandSimple s)
+            return s;
+
+        if (command is SqlPreCommandConcat c)
+            return new SqlPreCommandConcat(c.Spacing, c.Commands.Select(ForNormal).NotNull().ToArray());
+
+        if (command is SqlPreCommand_WithHistory h)
+            return h.Normal;
+
+        throw new UnexpectedValueException(command);
+    }
+
+    public static SqlPreCommand? ForHistory(SqlPreCommand? command)
+    {
+        if (command is null)
+            return null;
+
+        if (command is SqlPreCommandSimple s)
+            return s;
+
+        if (command is SqlPreCommandConcat c)
+            return c.Commands.Select(ForHistory).Combine(c.Spacing);
+
+        if (command is SqlPreCommand_WithHistory h)
+            return h.History;
+
+        throw new UnexpectedValueException(command);
+    }
+}

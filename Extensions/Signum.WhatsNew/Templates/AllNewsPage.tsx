@@ -60,7 +60,17 @@ export function WhatsNewPreviewPicture(p: { news: WhatsNewClient.WhatsNewFull}):
   return (
     <div key={whatsnew.whatsNew.id} style={{ position: "relative", cursor: "pointer", margin: "10px", }}>
       <div className={"card news-shadow"} style={{ width: "500px" }} key={whatsnew.whatsNew.id}>
-        {whatsnew.previewPicture != undefined && <div className="preview-picture-card-box"><img onClick={() => { handleClickPreviewPicture() }} alt={whatsnew.title} src={AppContext.toAbsoluteUrl("/api/whatsnew/previewPicture/" + whatsnew.whatsNew.id)} style={{ width: "100%", height: "auto" }} /></div>}
+        {whatsnew.previewPicture != undefined &&
+          <Link
+            to={"/newspage/" + p.news.whatsNew.id}
+            onClick={() => { handleClickPreviewPicture(); }}
+            aria-label={`${whatsnew.title} – ${WhatsNewMessage.ReadFurther.niceToString()}`}
+            style={{ display: "inline-block", maxWidth: "10vw", marginLeft: 10 }}>
+            <div className="preview-picture-card-box">
+              <img alt={whatsnew.title} src={AppContext.toAbsoluteUrl("/api/whatsnew/previewPicture/" + whatsnew.whatsNew.id)} style={{ width: "100%", height: "auto" }} />
+            </div>
+          </Link>
+        }
         <div className={"card-body pt-2"}>
           <h5 className={"card-title"}>{whatsnew.title}</h5>
           <small><HtmlViewer text={HTMLSubstring(whatsnew.description)} /></small>
@@ -81,7 +91,7 @@ export function WhatsNewPreviewPicture(p: { news: WhatsNewClient.WhatsNewFull}):
 export function NewsBadge(p: { news: WhatsNewClient.WhatsNewFull }): React.JSX.Element {
   if (!p.news.read)
     return (
-      <span className="sf-news-notify-badge" style={{ right: "0", top: "0" }}>NEW</span>
+      <span className="sf-news-notify-badge" style={{ right: "0", top: "0" }}>{WhatsNewMessage.New.niceToString()}</span>
     );
   else {
     return (<div></div>);

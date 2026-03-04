@@ -49,7 +49,7 @@ export class SchemaMapD3 {
       .enter().append<SVGPathElement>("path")
       .attr("class", "link")
       .style("stroke-dasharray", d => (<RelationInfo>d).isVirtualMListBackReference? "4 4" : (d as RelationInfo).lite ? "2, 2" : null)
-      .style("stroke", "black")
+      .style("stroke", "var(--bs-body-color)")
       .attr("marker-end", d => "url(#" + (d.isMList ? "mlist_arrow" : (<RelationInfo>d).lite ? "lite_arrow" : "normal_arrow") + ")")
       .attr("marker-start", d => (<RelationInfo>d).isVirtualMListBackReference ? "url(#virtual_mlist_arrow)" : null);
 
@@ -77,7 +77,11 @@ export class SchemaMapD3 {
     this.nodeGroup = nodesG.selectAll(".nodeGroup")
       .data(map.allNodes)
       .enter()
-      .append<SVGGElement>("svg:g").attr("class", "nodeGroup")
+      .append<SVGGElement>("svg:g")
+      .attr("class", "nodeGroup")
+      .attr("role", d => (d as TableInfo).typeName && Finder.isFindable((d as TableInfo).typeName, true) ? "button" : null)
+      .attr("tabindex", d => (d as TableInfo).typeName && Finder.isFindable((d as TableInfo).typeName, true) ? 0 : null)
+      .attr("aria-label", d => (d as TableInfo).typeName ? `Table ${(d as TableInfo).typeName}` : null)
       .style("cursor", d => (d as TableInfo).typeName && Finder.isFindable((d as TableInfo).typeName, true) ? "pointer" : null)
       .on("click", (e, d) => {
 
@@ -91,6 +95,20 @@ export class SchemaMapD3 {
 
         if (e.ctrlKey && (d as TableInfo).typeName) {
           window.open(AppContext.toAbsoluteUrl(Finder.findOptionsPath({ queryName: (d as TableInfo).typeName })));
+          e.preventDefault();
+        }
+      })
+      .on("keydown", (e: KeyboardEvent, d) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          const synthetic = new MouseEvent("click", { ctrlKey: e.ctrlKey });
+          (e.currentTarget as SVGGElement).dispatchEvent(synthetic);
+        }
+
+        if (e.ctrlKey && e.key === "Enter" && (d as TableInfo).typeName) {
+          window.open(AppContext.toAbsoluteUrl(
+            Finder.findOptionsPath({ queryName: (d as TableInfo).typeName })
+          ));
           e.preventDefault();
         }
       })

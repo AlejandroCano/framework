@@ -11,8 +11,6 @@ public sealed class IndexAttribute : Attribute
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
 public sealed class UniqueIndexAttribute : Attribute
 {
-    public bool AllowMultipleNulls { get; set; }
-
     public bool AvoidAttachToUniqueIndexes { get; set; }
 }
 
@@ -94,7 +92,7 @@ public struct Implementations : IEquatable<Implementations>
 
             if (t.IsInterface || t.IsAbstract)
             {
-                message += @"\n" + ConsiderMessage(route, "typeof(YourConcrete" + t.TypeName() + ")");
+                message += "\n" + ConsiderMessage(route, "typeof(YourConcrete" + t.TypeName() + ")");
             }
 
             throw new InvalidOperationException(message);
@@ -106,7 +104,10 @@ public struct Implementations : IEquatable<Implementations>
     internal static string ConsiderMessage(PropertyRoute route, string targetTypes)
     {
         return $@"Consider writing something like this in your Starter class:
-sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.PropertyString().Replace("/", ".First().")}).Replace(new ImplementedByAttribute({targetTypes}))";
+
+sb.Schema.Settings.FieldAttributes(({route.RootType.TypeName()} a) => a.{route.PropertyString().Replace("/", ".First().")}).Replace(new ImplementedByAttribute({targetTypes}))
+
+";
     }
 
     public static Implementations ByAll { get { return new Implementations(); } }
@@ -363,11 +364,11 @@ public sealed class PrimaryKeyAttribute : DbTypeAttribute
         }
     }
 
-    public PrimaryKeyAttribute(Type type)
+    public PrimaryKeyAttribute(Type type, bool identityBehaviour = true)
     {
         this.Type = type;
         this.Identity = type != typeof(Guid);
-        this.IdentityBehaviour = true;
+        this.IdentityBehaviour = identityBehaviour;
     }
 }
 
@@ -515,6 +516,18 @@ public sealed class LiteModelAttribute : Attribute
         this.LiteModelType = liteModel;
     }
 }
+
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+public sealed class AutoExpandSubTokensAttribute : Attribute
+{
+    public bool AutoExpand { get; }
+
+    public AutoExpandSubTokensAttribute(bool autoExpand)
+    {
+        AutoExpand = autoExpand;
+    }
+}
+
 
 public enum CombineStrategy
 {

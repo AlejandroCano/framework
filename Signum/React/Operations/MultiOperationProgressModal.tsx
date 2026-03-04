@@ -2,7 +2,7 @@ import * as React from 'react'
 import { openModal, IModalProps } from '../Modals';
 import { Operations } from '../Operations';
 import { Modal, ProgressBar } from 'react-bootstrap';
-import { Entity, JavascriptMessage, Lite, liteKey, OperationMessage } from '../Signum.Entities';
+import { Entity, EntityControlMessage, JavascriptMessage, Lite, liteKey, OperationMessage } from '../Signum.Entities';
 import { useForceUpdate, useThrottle } from '../Hooks';
 import { getOperationInfo, getTypeInfo, OperationInfo } from '../Reflection';
 import { useState } from 'react';
@@ -19,7 +19,7 @@ interface MultiOperationProgressModalProps extends IModalProps<Operations.API.Er
   abortController: AbortController;
 }
 
-export function MultiOperationProgressModal(p: MultiOperationProgressModalProps): React.JSX.Element {
+export function MultiOperationProgressModal(p: MultiOperationProgressModalProps): React.ReactElement {
 
   const [show, setShow] = React.useState(true);
   const forceUpdate = useForceUpdate();
@@ -67,7 +67,7 @@ export function MultiOperationProgressModal(p: MultiOperationProgressModalProps)
           p.operation.operationType == "Delete" ? OperationMessage.Deleting.niceToString() :
             p.operation.operationType == "ConstructorFrom" ? p.operation.niceName :
             OperationMessage.Executing0.niceToString(p.operation.niceName)}</h5>
-        <button type="button" className="btn-close" data-dismiss="modal" aria-label="Close" onClick={handleCancelClicked} />
+        <button type="button" className="btn-close" data-dismiss="modal" aria-label={EntityControlMessage.Close.niceToString()} onClick={handleCancelClicked} />
       </div>
       <div className="modal-body">
         <p><strong>{p.lites.length}</strong> {typeNiceName}</p>
@@ -80,7 +80,7 @@ export function MultiOperationProgressModal(p: MultiOperationProgressModalProps)
 
       </div>
       <div className="modal-footer">
-        <button className="btn btn-light sf-entity-button sf-close-button" onClick={handleCancelClicked}>
+        <button type="button" className="btn btn-tertiary sf-entity-button sf-close-button" onClick={handleCancelClicked}>
           {JavascriptMessage.cancel.niceToString()}
         </button>
       </div>
@@ -96,8 +96,8 @@ export namespace MultiOperationProgressModal {
       return openModal<Operations.API.ErrorReport>(<MultiOperationProgressModal operation={oi} lites={lites} makeRequest={makeRequest} abortController={abortController} />);
     } else {
       return makeRequest().then(r => r.json()).then(obj => {
-        var results = obj as Operations.API.OperationResult[];
-        return softCast<Operations.API.ErrorReport>({ errors: results.toObject(a => liteKey(a.entity), a => a.error) });
+        var a = obj as Operations.API.OperationResult;
+        return softCast<Operations.API.ErrorReport>({ errors: { [liteKey(a.entity)]: a.error } });
       });
     }
   };

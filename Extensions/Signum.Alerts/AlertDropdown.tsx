@@ -200,18 +200,23 @@ function AlertDropdownImp(props: { keepRingingFor: number }) {
   }
 
   var divRef = React.useRef<HTMLDivElement>(null);
-  useRootClose(divRef, () => setIsOpen(false), { disabled: !isOpen });
+  useRootClose(divRef as any, () => setIsOpen(false), { disabled: !isOpen });
 
   return (
     <>
-      <button className="nav-link sf-bell-container" onClick={handleOnToggle} title={window.__disableSignalR ?? undefined} style={{ border: 0, backgroundColor: 'transparent' }}>
-        <FontAwesomeIcon icon={window.__disableSignalR ? "bell-slash" : "bell"}
+      <button className="nav-link sf-bell-container" onClick={handleOnToggle} title={window.__disableSignalR ?? undefined} style={{ border: 0, backgroundColor: 'var(--alert-bg)' }}>
+        <FontAwesomeIcon aria-hidden={true} icon={window.__disableSignalR ? "bell-slash" : "bell"}
           title={(countResult ? AlertEntity.niceCount(countResult.numAlerts) : AlertEntity.nicePluralName()) + (ringing ? " " + AlertMessage.Ringing.niceToString() : "")}
           className={classes("sf-bell", ringing && "ringing", isOpen && "open", countResult && countResult.numAlerts > 0 && "active")} />
-        {countResult && countResult.numAlerts > 0 && <span className="badge bg-danger badge-pill sf-alerts-badge">{countResult.numAlerts}</span>}
+        {countResult && countResult.numAlerts > 0 && <span className="badge text-bg-danger badge-pill sf-alerts-badge" 
+        style={{
+            backgroundColor: "var(--alert-badge-bg)",
+            color: "var(--alert-badge-text)"
+          }}
+        >{countResult.numAlerts}</span>}
       </button>
       {isOpen && <div className="sf-alerts-toasts mt-2" ref={divRef} style={{
-        backgroundColor: "rgba(255,255,255, 0.7)",
+        backgroundColor: "--alert-toast-overlay",
         backdropFilter: "blur(10px)",
         transition: "transform .4s ease",
         height: ((alertGroups ?? []).orderByDescending(a => a.maxDate).filter((gr, i) => i < showGroups).sum(a => a.removing ? 0 : a.totalHight ?? 0) +
@@ -246,10 +251,20 @@ function AlertDropdownImp(props: { keepRingingFor: number }) {
               transition: "transform 0.4s ease"
             }} >
               <Toast className="w-100 my-2">
-                <Toast.Body style={{ textAlign: "center" }} onClick={() => setShowGroups(showGroups + MaxNumberOfGroups)} className="sf-pointer">
-                  <span  style={{ cursor: 'pointer', color: '#8c8c8c', fontSize: "0.8rem", fontWeight: 'bold' }}>
+                <Toast.Body style={{ textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowGroups(showGroups + MaxNumberOfGroups)}
+                    className="sf-pointer"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#8c8c8c',
+                      fontSize: "0.8rem",
+                      fontWeight: 'bold',
+                    }}>
                     {AlertMessage.Show0GroupsMore1Remaining.niceToString(MaxNumberOfGroups, alertGroups.filter(a => !a.removing).length - showGroups)}
-                  </span>
+                  </button>
                 </Toast.Body>
               </Toast>
             </div>}
@@ -316,15 +331,33 @@ export function AlertGroupToast(p: { group: AlertGroupWithSize, onClose: (e: Ale
 
   const totalExpandedHeight = alerts.filter((a, i) => i < showAlerts).sum((a, i) => (a.height ?? 0));
 
-  const textStyle: React.CSSProperties = { color: '#8c8c8c', fontSize: "0.8rem", fontWeight: 'bold' };
+  const textStyle: React.CSSProperties = { color: 'var(--alert-muted)', fontSize: "0.8rem", fontWeight: 'bold' };
   return (
     <div className="sf-alert-group pb-2" style={p.style} ref={htmlRef}>
       <div className="p-2 d-flex" style={{ position: 'relative',  }}>
         {groupTarget ? <span style={textStyle}>{`${getToString(groupTarget)} (${p.group.alerts.length})`}</span> : <span style={textStyle} >{`${AlertMessage.OtherNotifications.niceToString()} (${p.group.alerts.length})`}</span>}
 
-        {alerts.length > 1 && <span className="ms-auto me-2" style={{ cursor: 'pointer', ...textStyle }} onClick={() => setShowAlert(showAlerts == 1 ? 1 + MaxNumberOfAlerts : 1)}>{showAlerts == 1 ? AlertMessage.Expand.niceToString() : AlertMessage.Collapse.niceToString()}</span>}
-
-        {alerts.length > 1 && <span style={{ whiteSpace: 'nowrap', cursor: 'pointer', ...textStyle }} onClick={() => p.onClose(p.group)}>{AlertMessage.CloseAll.niceToString()}</span>}
+        {alerts.length > 1 &&
+          <button
+            type="button"
+            className="ms-auto me-2"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              ...textStyle
+            }}
+            onClick={() => setShowAlert(showAlerts == 1 ? 1 + MaxNumberOfAlerts : 1)}
+            aria-expanded={showAlerts !== 1}>
+              {showAlerts == 1 ? AlertMessage.Expand.niceToString() : AlertMessage.Collapse.niceToString()}
+          </button>}
+        {alerts.length > 1 &&
+          <button
+            type="button"
+            style={{ whiteSpace: 'nowrap', background: 'none', border: 'none', ...textStyle }}
+            onClick={() => p.onClose(p.group)}>
+            {AlertMessage.CloseAll.niceToString()}
+          </button>}
       </div>
       <div style={{
         perspective: "1000px",
@@ -347,7 +380,7 @@ export function AlertGroupToast(p: { group: AlertGroupWithSize, onClose: (e: Ale
               refresh={p.onRefresh} className="mb-0 mt-0"
               style={{
                 borderRadius: ".15em",
-                boxShadow: "0 0 2px 1px rgba(0, 0, 0, 0.1), 0 2px 3px rgba(0, 0, 0, 0.16)",
+                boxShadow: "var(--alert-shadow)",
                 width: "100%",
                 transformOrigin: "50% 0",
                 position: "absolute",
@@ -364,9 +397,19 @@ export function AlertGroupToast(p: { group: AlertGroupWithSize, onClose: (e: Ale
         })}
       </div>
       {showAlerts < p.group.alerts.filter(a => !a.removing).length && showAlerts > 1 && <div style={{ position: 'relative', backdropFilter: "blur(10px)", textAlign: 'center', marginTop: "-10px" }}>
-        <span onClick={() => setShowAlert(showAlerts + MaxNumberOfAlerts)} style={{ cursor: 'pointer', color: '#8c8c8c', fontSize: "0.8rem", fontWeight: 'bold' }}>
+        <button
+          type="button"
+          onClick={() => setShowAlert(showAlerts + MaxNumberOfAlerts)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#8c8c8c',
+            fontSize: "0.8rem",
+            fontWeight: 'bold',
+            textDecoration: 'underline',
+          }}>
           {AlertMessage.Show0AlertsMore.niceToString(MaxNumberOfAlerts)}
-        </span>
+        </button>
       </div>}
     </div>
   );
@@ -402,7 +445,7 @@ export function AlertToast(p: {
         <strong className="me-auto">{AlertsClient.getTitle(alert.titleField, alert.alertType)}</strong>
         <small>{DateTime.fromISO(alert.alertDate!).toRelative()}</small>
       </Toast.Header>
-      <Toast.Body style={{ whiteSpace: "pre-wrap", opacity: p.expanded ? undefined : 0, transition: "transform .4s ease", }}>
+      <Toast.Body style={{ whiteSpace: "pre-wrap", opacity: p.expanded ? undefined : 0, transition: "transform .4s ease",  color: "var(--alert-text)"}}>
         <div className="row">
           <div className="col-sm-1">
             {alert.createdBy && <SmallProfilePhoto user={alert.createdBy as Lite<UserEntity>} />}

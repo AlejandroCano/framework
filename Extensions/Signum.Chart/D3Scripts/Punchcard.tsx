@@ -8,6 +8,8 @@ import { XKeyTicks, YKeyTicks } from './Components/Ticks';
 import { XAxis, YAxis } from './Components/Axis';
 import { Rule } from './Components/Rule';
 import InitialMessage from './Components/InitialMessage';
+import { ChartMessage, D3ChartScript } from '../Signum.Chart';
+import { symbolNiceName, getQueryNiceName } from '@framework/Reflection';
 
 
 export default function renderPunchcard({ data, width, height, parameters, loading, onDrillDown, initialLoad, chartRequest, dashboardFilter }: ChartScriptProps): React.ReactElement<any> {
@@ -114,7 +116,7 @@ export default function renderPunchcard({ data, width, height, parameters, loadi
   var shape = parameters["Shape"];
   var innerSize = null
   if (innerSizeColumn != null) {
-    innerSize = scaleFor(innerSizeColumn, data.rows.map(innerSizeColumn.getValue), 0, 100, parameters["OpacityScale"])
+    innerSize = scaleFor(innerSizeColumn, data.rows.map(innerSizeColumn.getValue), 0, 100, "ZeroMax")
   }
 
   var scaleTransform = initialLoad ? scale(0, 0) : scale(1, 1);
@@ -186,8 +188,8 @@ export default function renderPunchcard({ data, width, height, parameters, loadi
       className:"punch sf-transition hover-target",
       shapeRendering: "initial",
       fillOpacity: fillOpacity(r),
-      fill: color == null ? (parameters["FillColor"] ?? 'black') : color(colorColumn!.getValue(r)),
-      stroke: detector?.(r) == true ? "black" :  parameters["StrokeColor"] ?? (color == null ? 'black' : color(colorColumn!.getValue(r))),
+      fill: color == null ? (parameters["FillColor"] ?? 'var(--bs-body-color)') : color(colorColumn!.getValue(r)),
+      stroke: detector?.(r) == true ? "var(--bs-body-color)" :  parameters["StrokeColor"] ?? (color == null ? 'var(--bs-body-color)' : color(colorColumn!.getValue(r))),
       strokeWidth: parameters["StrokeWidth"],
       strokeOpacity: (opacity != null ? opacity(opacityColumn!.getValue(r)) : 1)
     }));
@@ -207,14 +209,15 @@ export default function renderPunchcard({ data, width, height, parameters, loadi
         className: "punch-inner sf-transition",
         shapeRendering: "initial",
         fillOpacity: fillOpacity(r),
-        fill: parameters["InnerFillColor"] ?? 'black'
+        fill: parameters["InnerFillColor"] ?? 'var(--bs-body-color)'
       })
     );
 
   const detector = ChartClient.getActiveDetector(dashboardFilter, chartRequest);
 
   return (
-    <svg direction="ltr" width={width} height={height}>
+    <svg direction="ltr" width={width} height={height} role="img">
+      <title id="punchcardChartTitle">{ChartMessage._0Of1_2.niceToString(symbolNiceName(D3ChartScript.Punchcard), getQueryNiceName(chartRequest.queryKey), [verticalColumn.title, horizontalColumn.title].join(", "))}</title>
       <XKeyTicks keyColumn={horizontalColumn} keyValues={horizontalKeys} xRule={xRule} yRule={yRule} x={x} showLines={x.bandwidth() > 5} isActive={detector && (val => detector!({ c0: val }))} onDrillDown={(v, e) => onDrillDown({ c0: v }, e)}/>
       <YKeyTicks keyColumn={verticalColumn} keyValues={verticalKeys} xRule={xRule} yRule={yRule} y={y} showLines={y.bandwidth() > 5} showLabels={true} isActive={detector && (val => detector!({ c1: val }))} onDrillDown={(v, e) => onDrillDown({ c1: v }, e)}/>
       <g className="punch-panel" transform={translate(xRule.start('content') + x.bandwidth() / 2, yRule.end('content') - y.bandwidth() / 2)}>
@@ -226,6 +229,9 @@ export default function renderPunchcard({ data, width, height, parameters, loadi
             return (
               <g key={horizontalColumn.getValueKey(r) + "-" + verticalColumn.getValueKey(r)} className="chart-groups sf-transition hover-group"
                 cursor="pointer"
+                role="button"
+                tabIndex={0}
+                focusable={true}
                 opacity={active == false ? .5 : undefined}
                 onClick={e => onDrillDown(r, e)}>
                 {mainShape?.renderer(r)}

@@ -8,15 +8,17 @@ import { EntityListBaseController, EntityListBaseProps, DragConfig, MoveConfig }
 import { Property } from 'csstype';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Breakpoints, getBreakpoint, useAPI, useBreakpoint, useForceUpdate } from '../Hooks'
-import { genericForwardRef, useController } from './LineBase'
+import { useController } from './LineBase'
 import { KeyNames } from '../Components'
 import { getTimeMachineIcon } from './TimeMachineIcon'
 import { GroupHeader, HeaderType } from './GroupHeader'
 import { AutoLine } from './AutoLine'
+import { LinkButton } from '../Basics/LinkButton'
 
 
 export interface EntityTableProps<V extends ModifiableEntity, RS> extends EntityListBaseProps<V> {
-  createAsLink?: boolean | ((er: EntityTableController<V, RS>) => React.ReactElement);
+  createAsLink?: boolean | string | ((er: EntityTableController<V, RS>) => React.ReactElement);
+  findAsLink?: boolean | string | ((er: EntityTableController<V, RS>) => React.ReactElement);
   firstColumnHtmlAttributes?: React.ThHTMLAttributes<any>;
   rowHooks?: (ctx: TypeContext<NoInfer<V>>, row: EntityTableRowHandle<V, unknown>) => RS;
   columns?: (EntityTableColumn<V, NoInfer<RS>> | false | null | undefined)[],
@@ -29,11 +31,13 @@ export interface EntityTableProps<V extends ModifiableEntity, RS> extends Entity
   tableClasses?: string;
   theadClasses?: string;
   createMessage?: string;
+  findMessage?: string;
   createOnBlurLastRow?: boolean;
   responsive?: boolean;
-  customKey?: (entity: V) => string | undefined; 
+  customKey?: (entity: V) => string | undefined;
   afterView?: (ctx: TypeContext<NoInfer<V>>, row: EntityTableRowHandle<V, NoInfer<RS>>, rowState: NoInfer<RS>) => React.ReactElement | boolean | null | undefined;
   afterRow?: (ctx: TypeContext<NoInfer<V>>, row: EntityTableRowHandle<V, NoInfer<RS>>, rowState: NoInfer<RS>) => React.ReactElement | boolean | null | undefined;
+  ref?: React.Ref<EntityTableController<V, RS>>;
 }
 
 export interface EntityTableColumn<V extends ModifiableEntity, RS> {
@@ -50,10 +54,10 @@ export interface EntityTableColumn<V extends ModifiableEntity, RS> {
 
 
 export class EntityTableController<V extends ModifiableEntity, RS> extends EntityListBaseController<EntityTableProps<V, RS>, V> {
-  containerDiv!: React.RefObject<HTMLDivElement>;
-  thead!: React.RefObject<HTMLTableSectionElement>;
-  tfoot!: React.RefObject<HTMLTableSectionElement>;
-  recentlyCreated!: React.MutableRefObject<Lite<Entity> | ModifiableEntity | null>;
+  containerDiv!: React.RefObject<HTMLDivElement | null>;
+  thead!: React.RefObject<HTMLTableSectionElement | null>;
+  tfoot!: React.RefObject<HTMLTableSectionElement | null>;
+  recentlyCreated!: React.RefObject<Lite<Entity> | ModifiableEntity | null>;
 
   init(p: EntityTableProps<V, RS>): void {
     super.init(p);
@@ -75,6 +79,7 @@ export class EntityTableController<V extends ModifiableEntity, RS> extends Entit
     p.viewOnCreate = false;
     p.view = false;
     p.createAsLink = true;
+    p.findAsLink = true;
   }
 
   overrideProps(state: EntityTableProps<V, RS>, overridenProps: EntityTableProps<V, RS>): void {
@@ -192,8 +197,8 @@ export class EntityTableController<V extends ModifiableEntity, RS> extends Entit
 //  typedColumns<T extends ModifiableEntity, RS = undefined>(columns: (EntityTableColumn<T, RS> | false | null | undefined)[]): EntityTableColumn<ModifiableEntity, RS>[]
 //}
 
-export const EntityTable: <V extends ModifiableEntity, RS>(props: EntityTableProps<V, RS> & React.RefAttributes<EntityTableController<V, RS>>) => React.ReactNode | null = genericForwardRef(function EntityTable<V extends ModifiableEntity, RS>(props: EntityTableProps<V, RS>, ref: React.Ref<EntityTableController<V, RS>>) {
-  const c = useController(EntityTableController, props, ref);
+export function EntityTable<V extends ModifiableEntity, RS>(props: EntityTableProps<V, RS>): React.JSX.Element | null {
+  const c = useController<EntityTableController<V, RS>, EntityTableProps<V, RS>, MList<V>>(EntityTableController, props);
   const p = c.props;
 
   if (p.type && p.type.isLite)
@@ -220,7 +225,7 @@ export const EntityTable: <V extends ModifiableEntity, RS>(props: EntityTablePro
       <span className="ms-2">
         {c.props.extraButtonsBefore && c.props.extraButtonsBefore(c)}
         {p.createAsLink == false && c.renderCreateButton(false, p.createMessage)}
-        {c.renderFindButton(false)}
+        {p.findAsLink == false && c.renderFindButton(false, p.findMessage)}
         {c.props.extraButtons && c.props.extraButtons(c)}
       </span>
     );
@@ -237,9 +242,10 @@ export const EntityTable: <V extends ModifiableEntity, RS>(props: EntityTablePro
     var isEmpty = p.avoidEmptyTable && elementCtxs.length == 0;
     var firstColumnVisible = !(p.readOnly || p.remove == false && p.move == false && p.view == false);
 
-    var showCreateRow = p.createAsLink && p.create && !readOnly;
     var cleanColumns = p.columns as EntityTableColumn<V, RS>[];
     var hasFooters = cleanColumns.some(a => a.footer != null);
+
+    var hasLinkButtons = !readOnly && (p.create && p.createAsLink || p.find && p.findAsLink);
 
     return (
       <div ref={c.containerDiv}
@@ -251,7 +257,7 @@ export const EntityTable: <V extends ModifiableEntity, RS>(props: EntityTablePro
           {
             !isEmpty &&
             <thead ref={c.thead}>
-              <tr className={p.theadClasses ?? "bg-light"}>
+              <tr className={p.theadClasses}>
                 {firstColumnVisible && <th {...p.firstColumnHtmlAttributes}></th>}
                 {
                   cleanColumns.map((c, i) => <th key={i} {...c.headerHtmlAttributes}>
@@ -285,23 +291,35 @@ export const EntityTable: <V extends ModifiableEntity, RS>(props: EntityTablePro
             }
           </tbody>
           {
-            (showCreateRow || hasFooters) &&
+            (hasFooters || hasLinkButtons) &&
             <tfoot ref={c.tfoot}>
               {
-                showCreateRow && <tr>
+                hasLinkButtons && <tr>
                   <td colSpan={1 + p.columns!.length} className={isEmpty ? "border-0" : undefined}>
-                    {typeof p.createAsLink == "function" ? p.createAsLink(c) :
-                      <a href="#" title={ctx.titleLabels ? EntityControlMessage.Create.niceToString() : undefined}
-                        className="sf-line-button sf-create"
+
+                      {(p.find && p.findAsLink) && (typeof p.findAsLink == "function" ? p.findAsLink(c) :
+                        <LinkButton
+                          title={ctx.titleLabels ? EntityControlMessage.Find.niceToString() : undefined}
+                          className="sf-line-button sf-find me-3"
+                          tabIndex={0}
+                          onClick={c.handleFindClick}>
+                          <span className="me-1">{EntityBaseController.getFindIcon()}</span>{p.findMessage ?? EntityControlMessage.Find.niceToString()}
+                        </LinkButton>)}
+
+                      {(p.create && p.createAsLink) && (typeof p.createAsLink == "function" ? p.createAsLink(c) :
+                      <LinkButton
+                        title={ctx.titleLabels ? EntityControlMessage.Create.niceToString() : undefined}
+                        className="sf-line-button sf-create "
+                        tabIndex={0}
                         onClick={c.handleCreateClick}>
-                        <FontAwesomeIcon icon="plus" className="sf-create" />&nbsp;{p.createMessage ?? EntityControlMessage.Create.niceToString()}
-                      </a>}
+                          <span className="me-1">{EntityBaseController.getCreateIcon()}</span>{p.createMessage ?? EntityControlMessage.Create.niceToString()}
+                      </LinkButton>)}
                   </td>
                 </tr>
               }
               {
                 hasFooters && <tr>
-                    {firstColumnVisible && <td></td>}
+                  {firstColumnVisible && <td></td>}
                   {cleanColumns.map((c, i) =>
                     <td key={i} {...c.footerHtmlAttributes}>{c.footer}</td>)}
                 </tr>
@@ -312,7 +330,7 @@ export const EntityTable: <V extends ModifiableEntity, RS>(props: EntityTablePro
       </div >
     );
   }
-});
+};
 
 (EntityTable as any).defaultProps = {
   maxResultsHeight: "400px",
@@ -343,7 +361,7 @@ export interface EntityTableRowHandle<V extends ModifiableEntity, RS = unknown> 
   forceUpdate(): void;
 }
 
-export function EntityTableRow<V extends ModifiableEntity, RS>(p: EntityTableRowProps<V, RS>): React.JSX.Element {
+export function EntityTableRow<V extends ModifiableEntity, RS>(p: EntityTableRowProps<V, RS>): React.ReactElement {
   const forceUpdate = useForceUpdate();
 
   const rowState = p.rowHooks?.(p.ctx, { props: p as EntityTableRowProps<V, unknown>, forceUpdate })!;
@@ -351,16 +369,16 @@ export function EntityTableRow<V extends ModifiableEntity, RS>(p: EntityTableRow
   const rowHandle = { props: p, rowState, forceUpdate } as EntityTableRowHandle<V, RS>;
 
   var ctx = p.ctx;
-  
+
   if (ctx.binding == null && ctx.previousVersion) {
-    return (<tr style={{backgroundColor: "#ff000021" }}>
+    return (<tr style={{ backgroundColor: "var(--bs-danger-bg-subtle)" }}>
       <td className="align-items-center p-0 ps-1" >{getTimeMachineIcon({ ctx: ctx, isContainer: true })}</td>
       {p.columns.map((c, i) => <td key={i} ></td>)}
     </tr>);
   }
   var rowAtts = p.onRowHtmlAttributes && p.onRowHtmlAttributes(ctx, rowHandle, rowState);
   const drag = p.drag;
-  var row =  (
+  var row = (
     <tr
       onBlur={p.onCreateLastRowBlur && (e => p.onCreateLastRowBlur!(rowHandle, e))}
       {...rowAtts}
@@ -370,36 +388,36 @@ export function EntityTableRow<V extends ModifiableEntity, RS>(p: EntityTableRow
       onKeyDown={p.onKeyDown && (e => p.onKeyDown!(rowHandle, e))}
       className={classes(drag?.dropClass, rowAtts?.className)}
     >
-      {p.firstColumnVisible && <td>
+      {p.firstColumnVisible && <td style={{ verticalAlign: "middle" }}>
         <div className="item-group">
           {getTimeMachineIcon({ ctx: ctx, isContainer: true })}
-          {p.onRemove && <a href="#" className={classes("sf-line-button", "sf-remove")}
+          {p.onRemove && <LinkButton className={classes("sf-line-button", "sf-remove")}
             onClick={p.onRemove}
             title={ctx.titleLabels ? EntityControlMessage.Remove.niceToString() : undefined}>
             {EntityBaseController.getRemoveIcon()}
-          </a>}
+          </LinkButton>}
           &nbsp;
-          {drag && <a href="#" className={classes("sf-line-button", "sf-move")} onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+          {drag && <LinkButton className={classes("sf-line-button", "sf-move")} onClick={e => { e.stopPropagation(); }}
             draggable={true}
             onKeyDown={drag.onKeyDown}
             onDragStart={drag.onDragStart}
             onDragEnd={drag.onDragEnd}
             title={drag.title}>
             {EntityBaseController.getMoveIcon()}
-          </a>}
+          </LinkButton>}
           {p.move?.renderMoveUp()}
           {p.move?.renderMoveDown()}
-          {p.onView && <a href="#" className={classes("sf-line-button", "sf-view")}
+          {p.onView && <LinkButton className={classes("sf-line-button", "sf-view")}
             onClick={p.onView}
             title={ctx.titleLabels ? EntityControlMessage.View.niceToString() : undefined}>
             {EntityBaseController.getViewIcon()}
-          </a>}
+          </LinkButton>}
           {p.afterView?.(p.ctx, rowHandle, rowState)}
         </div>
-      </td>}      
+      </td>}
       {p.columns.map((c, i) => {
 
-        var td = <td key={i} {...c.cellHtmlAttributes && c.cellHtmlAttributes(ctx, rowHandle, rowState)}>{getTemplate(c)}</td>;
+        var td = <td style={{ verticalAlign: "middle" }} key={i} {...c.cellHtmlAttributes && c.cellHtmlAttributes(ctx, rowHandle, rowState)}>{getTemplate(c)}</td>;
 
         var mc = c.mergeCells as ((a: any) => any) | undefined
 

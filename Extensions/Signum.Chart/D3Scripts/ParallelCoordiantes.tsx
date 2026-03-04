@@ -7,6 +7,8 @@ import { Dic } from '@framework/Globals';
 import { XKeyTicks } from './Components/Ticks';
 import { Rule } from './Components/Rule';
 import InitialMessage from './Components/InitialMessage';
+import { ChartMessage, ChartParameter, D3ChartScript } from '../Signum.Chart';
+import { symbolNiceName, getQueryNiceName } from '@framework/Reflection';
 
 interface ColumnWithScales {
   column: ChartColumn<number>;
@@ -59,7 +61,7 @@ function ParallelCoordinatesImp({ data, width, height, parameters, loading, onDr
     .map(p => {
       const c = p! as ChartColumn<number>;
       var values = data.rows.map(r => c.getValue(r));
-      var scaleType = parameters["Scale" + c.name.after("c")];
+      var scaleType = parameters[("Scale" + c.name.after("c")) as ChartParameter];
       var scale = scaleFor(c, values, 0, yRule.size('content'), scaleType);
       var scaleFunc = scaleFor(c, values, 0, 1, scaleType);
       var colorScale = (r: ChartRow) => colorInterpolation(scaleFunc(c.getValue(r))!);
@@ -87,13 +89,24 @@ function ParallelCoordinatesImp({ data, width, height, parameters, loading, onDr
 
   var detector = ChartClient.getActiveDetector(dashboardFilter, chartRequest);
 
+  var keyColumns: ChartColumn<any>[] = data.columns.entity ? [data.columns.entity] :
+    [data.columns.c1, data.columns.c2, data.columns.c3, data.columns.c4, data.columns.c5, data.columns.c6, data.columns.c7, data.columns.c8].filter(cn => cn != undefined).filter(a => a.token && a.token.queryTokenType != "Aggregate")
+
+  var aggregateColumns: ChartColumn<any>[] = data.columns.entity ? [data.columns.entity] :
+    [data.columns.c1, data.columns.c2, data.columns.c3, data.columns.c4, data.columns.c5, data.columns.c6, data.columns.c7, data.columns.c8].filter(cn => cn != undefined).filter(a => a.token && a.token.queryTokenType == "Aggregate")
+
+  var titleMessage = (aggregateColumns.length != 0) ?
+    ChartMessage._0Of1_2Per3.niceToString(symbolNiceName(D3ChartScript.ParallelCoordinates), getQueryNiceName(chartRequest.queryKey), keyColumns.map(cn => cn.title).join(", "), aggregateColumns.map(cn => cn.title).join(", ")) :
+    ChartMessage._0Of1_2.niceToString(symbolNiceName(D3ChartScript.ParallelCoordinates), getQueryNiceName(chartRequest.queryKey), keyColumns.map(cn => cn.title).join(", "));
+
   return (
-    <svg direction="ltr" width={width} height={height}>
+    <svg direction="ltr" width={width} height={height} role="img">
+      <title id="parallelCoodinatesChartTitle">{titleMessage}</title>
       <g className="x-tick" transform={translate(xRule.start('content') + x.bandwidth() / 2, yRule.start('content'))}>
         {cords.map(d => <line key={d.column.name} className="x-tick sf-transition"
           transform={translate(x(d.column.name)!, 0)}
           y2={yRule.size('content')}
-          stroke="black" />)}
+          stroke="var(--bs-body-color)" />)}
       </g>
 
       <g className="x-label" transform={translate(xRule.start('content') + x.bandwidth() / 2, yRule.middle('title'))}>
@@ -111,7 +124,7 @@ function ParallelCoordinatesImp({ data, width, height, parameters, loading, onDr
           transform={translate(x(d.column.name)!, 0)}
           dominantBaseline="middle"
           textAnchor="middle">
-          {d.column.type != "DateOnly" && d.column.type != "DateTime" ?
+          {d.column.type != "Date" && d.column.type != "DateTime" ?
             d.scale.domain()[1] :
             d.column.getNiceName(d3.max(data.rows, r => d.column.getValue(r))!)}
         </text>)}
@@ -122,7 +135,7 @@ function ParallelCoordinatesImp({ data, width, height, parameters, loading, onDr
           transform={translate(x(d.column.name)!, 0)}
           dominantBaseline="middle"
           textAnchor="middle">
-          {d.column.type != "DateOnly" && d.column.type != "DateTime" ?
+          {d.column.type != "Date" && d.column.type != "DateTime" ?
             d.column.getNiceName(d.scale.domain()[0]) :
             d.column.getNiceName(d3.min(data.rows, r => d.column.getValue(r))!)}
         </text>)}
@@ -142,10 +155,18 @@ function ParallelCoordinatesImp({ data, width, height, parameters, loading, onDr
               className="shape sf-transition"
               fill="none"
               strokeWidth={active == true ? 3 : 2}
-              stroke={active == true ? "black" : selectedColumn.colorScale(r)}
+              stroke={active == true ? "var(--bs-body-color)" : selectedColumn.colorScale(r)}
               shapeRendering="initial"
               onClick={e => onDrillDown(r, e)}
+              role="button"
+              tabIndex={0}
               cursor="pointer"
+              onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  (onclick as any)?.(e);
+                }
+              }}
               d={line(cords.map(c => ({ col: c, row: r })))!}>
               <title>
                 {keyColumn.getValueNiceName(r) + "\n" +
@@ -165,6 +186,15 @@ function ParallelCoordinatesImp({ data, width, height, parameters, loading, onDr
           stroke="#ccc"
           fill={selectedColumn.column.name != d.column.name ? '#ccc' : '#000'}
           fillOpacity=".2"
+          role="button"
+          tabIndex={0}
+          cursor="pointer"
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              (onclick as any)?.(e);
+            }
+          }}
           onClick={e => setSelectedColumnName(d.column.name)} />)}
       </g>
 

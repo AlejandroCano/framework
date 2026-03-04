@@ -1,120 +1,107 @@
-import { $getRoot, LexicalEditor } from "lexical";
+import { $createTextNode, $getRoot, LexicalEditor } from "lexical";
 import { HtmlEditorController } from "../../HtmlEditorController";
-import { HtmlEditorExtension, LexicalConfigNode, OptionalCallback } from "../types";
-import { ImageConverter } from "./ImageConverter";
-import { $createImageNode, ImageNode } from "./ImageNode";
+import {
+  HtmlEditorExtension,
+  LexicalConfigNode,
+  OptionalCallback,
+} from "../types";
+import { ImageHandlerBase, ImageInfo } from "./ImageHandlerBase";
+import { $createImageNode, ImageNodeBase } from "./ImageNodeBase";
 
-export class ImageExtension<T extends object = {}> implements HtmlEditorExtension {
-  constructor(public imageConverter: ImageConverter<T>) {}
+export class ImageExtension implements HtmlEditorExtension {
+
+  name = "ImageExtension";
+  constructor(public nodeType: typeof ImageNodeBase) {}
 
   registerExtension(controller: HtmlEditorController): OptionalCallback {
     const abortController = new AbortController();
     const element = controller.editableElement;
 
-    if(!element) return;
+    if (!element) return;
 
-    element.addEventListener("dragover", (event) => {
-      event.preventDefault(); 
+    element.addEventListener("dragenter", (event) => {
+      if (!controller.editor.isEditable()) {
+        event.dataTransfer!.dropEffect = "none";
+      }
+      else {
+        event.dataTransfer!.dropEffect = "copy";
+      }
+    }, { signal: abortController.signal });
+
+    element.addEventListener(
+      "dragover",
+      (event) => {
+        event.preventDefault();
+
+      if (!controller.editor.isEditable()) {
+        event.dataTransfer!.dropEffect = "none";
+        return;
+      }
+
+      event.dataTransfer!.dropEffect = "copy";
     }, { signal: abortController.signal });
 
     element.addEventListener("drop", (event) => {
-      event.preventDefault();
-      const files = event.dataTransfer?.files;
+      if (!controller.editor.isEditable())
+        return;
 
-      if(!files?.length) return;
-      this.insertImageNodes(files, controller.editor, this.imageConverter);
+      event.preventDefault();
+
+      const files = event.dataTransfer?.files;
+      if (!files?.length) return;
+
+      this.insertImageNodes(files, controller, this.nodeType.handler);
     }, { signal: abortController.signal });
 
     element.addEventListener("paste", (event) => {
+      if (!controller.editor.isEditable()) return;
       const files = event.clipboardData?.files;
-      
-      if(!files?.length) return;
-      event.preventDefault();
-      this.insertImageNodes(files, controller.editor, this.imageConverter);
-    }, { signal: abortController.signal });
+      if (!files?.length) return;
 
-    const unsubscribeUpdateListener = controller.editor.registerUpdateListener(() => {
-      if(!controller.editor || !this.imageConverter) return;
-      this.replaceImagePlaceholders(controller);
-    });
+      event.preventDefault();
+      this.insertImageNodes(files, controller, this.nodeType.handler);
+    }, { signal: abortController.signal });
 
     return () => {
       abortController.abort();
-      unsubscribeUpdateListener();
     };
   }
 
   getNodes(): LexicalConfigNode {
-    return [ImageNode]
-  
+    return [this.nodeType];
   }
 
-  async insertImageNodes(files: FileList, editor: LexicalEditor, imageConverter: ImageConverter<T>): Promise<void> {
-    const uploadPromises = Array.from(files).filter(file => file.type.startsWith("image/")).map(file => {
-      try {
-        return imageConverter.uploadData(file)
-      } catch (error) {
-        console.error("Image uploade failed.", error)
-        return null;
-      }
-    });
-  
-    const uploadedFiles = (await Promise.all(uploadPromises)).filter(v => v !== null);
-    if(!uploadedFiles.length) return;
-  
-    editor.update(() => {
-      uploadedFiles.forEach(file => {
-        const imageNode = $createImageNode(file, imageConverter);
-          $getRoot().append(imageNode);
-      })
-    });
-  }
+  async insertImageNodes(
+    files: FileList,
+    controller: HtmlEditorController,
+    handler: ImageHandlerBase
+  ): Promise<void> {
 
-  replaceImagePlaceholders(controller: HtmlEditorController): void {
-    const attachments = (() => {
-      const binding = controller.binding;
-      if('parentObject' in binding) {
-        const parentObject = binding.parentObject as object;
-        if('attachments' in parentObject) {
-          const attachments = parentObject.attachments as { rowId: number }[];
-          return attachments.map(att => att.rowId?.toString()) ?? []
+    const uploadPromises: Promise<ImageInfo>[] = Array.from(files)
+      .filter(file => file.type.startsWith("image/"))
+      .map(async (file) => {
+        try {
+          return await handler.uploadData(file);
+        } catch (error) {
+          console.error("Image upload failed.", error);
+          throw error;
         }
-      }
-
-      return [];
-    })();
-    
-    if(!attachments.length) return;
-    
-    const editorState =  controller.editor.getEditorState();
-    let hasUpdatedNodes = false
-    controller.editor.update(() => {
-      const nodes = Array.from(editorState._nodeMap.values());
-      if(!nodes.some(v => isImagePlaceholderRegex(v.getTextContent()))) return;
-      editorState._nodeMap.forEach((node) => {
-          const text = node.getTextContent();
-          
-          if(node.getType() === "text" && isImagePlaceholderRegex(text)) {
-            const attachmentId = extractAttachmentId(text);
-            if(attachmentId && !attachments.includes(attachmentId)) return;
-            node.replace($createImageNode({ attachmentId } as object, this.imageConverter));
-            hasUpdatedNodes = true;
-          }
       });
-    }, { discrete: true });
 
-    if(hasUpdatedNodes) controller.saveHtml();
-  }
+    const uploadedFiles = await Promise.allSettled(uploadPromises);
+    const successfulFiles: ImageInfo[] = uploadedFiles
+      .filter((r): r is PromiseFulfilledResult<Awaited<ImageInfo>> => r.status === "fulfilled")
+      .map(r => r.value);
+
+    if (!successfulFiles.length) return;
+
+    controller.editor.update(() => {
+      for (const file of successfulFiles) {
+        const imageNode = $createImageNode(file, this.nodeType);
+        $getRoot().append(imageNode);
+      }
+    });
+
+    controller.saveHtml(); //onBlur is not reliable
+    }
 }
-
-export const IMAGE_PLACEHOLDER_REGEX: RegExp = /^\[IMAGE_(\d+)\]$/;
-
-export function extractAttachmentId(text: string): string | null {
-  const match = text.match(IMAGE_PLACEHOLDER_REGEX);
-  return match ? match[1] : null
-}
-
-export function isImagePlaceholderRegex(text: string): boolean {
-  return IMAGE_PLACEHOLDER_REGEX.test(text);
-}
-

@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
-using System.Globalization;
+using Microsoft.Net.Http.Headers;
 using Signum.API.Filters;
-using Signum.Basics;
+using Signum.Files;
+using System.ComponentModel.DataAnnotations;
+using System.IO;
 
 namespace Signum.Help;
 
@@ -61,7 +63,8 @@ public class HelpController : ControllerBase
     public AppendixHelpEntity Appendix(string? uniqueName)
     {
         HelpPermissions.ViewHelp.AssertAuthorized();
-        if (!uniqueName.HasText())
+
+        if (string.IsNullOrWhiteSpace(uniqueName))
             return new AppendixHelpEntity
             {
                 Culture = HelpLogic.GetCulture().ToCultureInfoEntity() 
@@ -82,8 +85,9 @@ public class HelpController : ControllerBase
     [HttpGet("api/help/type/{cleanName}")]
     public TypeHelpEntity Type(string cleanName)
     {
-        HelpPermissions.ViewHelp.AssertAuthorized();
-        var help = HelpLogic.GetTypeHelp(TypeLogic.GetType(cleanName));
+        //HelpPermissions.ViewHelp.AssertAuthorized();
+        var type = TypeLogic.GetType(cleanName);
+        var help = HelpLogic.GetTypeHelp(type);
         help.AssertAllowed();
         return help.GetEntity();
     }
@@ -135,6 +139,46 @@ public class HelpController : ControllerBase
         }
 
     }
+
+    [HttpPost("api/help/export")]
+    public FileStreamResult Export([Required, FromBody] Lite<IHelpEntity>[] lites)
+    {
+        HelpPermissions.ExportHelp.AssertAuthorized();
+        
+        var bytes = HelpExportImport.ExportToZipBytes([.. lites.RetrieveList()], "Help");
+
+        var typeName = lites.Select(a => a.EntityType).Distinct().SingleEx().ToTypeEntity().CleanName;
+        var Ids = lites.ToString(a => a.Id.ToString().Truncate(5), "_");
+        var fileName = $"{typeName}{Ids}.zip";
+
+        return MimeMapping.GetFileStreamResult(new MemoryStream(bytes), fileName);
+    }
+
+    [HttpGet("api/help/getImageId")]
+    public ActionResult<string> GetImageId([Required, FromQuery] Guid guid)
+    {
+        Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue
+        {
+            Public = true,
+            MaxAge = TimeSpan.FromDays(365),
+        };
+
+        var id = HelpLogic.GetImageId(guid);
+        return id is null ? NotFound() : id.Value.ToString();
+    }
+
+    [HttpPost("api/help/importPreview")]
+    public HelpImportPreviewModel ImportPreview([Required, FromBody] FileUpload file)
+    {
+        return HelpExportImport.ImportPreviewFromZip(file.content);
+    }
+
+    [HttpPost("api/help/applyImport")]
+    public HelpImportReportModel ApplyImport([Required, FromBody] FileUploadWithModel<HelpImportPreviewModel> fileModel)
+    {
+        return HelpExportImport.ImportFromZip(fileModel.file.content, fileModel.model);
+    }
+
 }
 
 public class HelpIndexTS
