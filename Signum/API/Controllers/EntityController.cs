@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Client;
 using Signum.API.Filters;
@@ -23,12 +24,24 @@ public class EntitiesController : ControllerBase
 
     }
     [HttpGet("api/entityPackLight/{type}/{id}"), ProfilerActionSplitter("type")]
-    public EntityPackTS GetEntityPackLight(string type, string id, [FromQuery] int? partitionId)
+    public ActionResult<EntityPackTS> GetEntityPackLight(string type, string id, [FromQuery] int? partitionId)
     {
-        var ep = GetEntityPack(type, id, partitionId);
-        ep.canExecute = new Dictionary<string, string>();
-        ep.extension = new Dictionary<string, object?>();
-        return ep;
+        try
+        {
+            var ep = GetEntityPack(type, id, partitionId);
+            ep.canExecute = new Dictionary<string, string>();
+            ep.extension = new Dictionary<string, object?>();
+            return ep;
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Error en GetEntityPackLight",
+                Detail = ex.Message,
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
     }
     [HttpGet("api/entityPack/{type}/{id}"), ProfilerActionSplitter("type")]
     public EntityPackTS GetEntityPack(string type, string id, [FromQuery] int? partitionId)
