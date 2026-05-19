@@ -28,7 +28,7 @@ public class EntitiesController : ControllerBase
         try
         {
             var ep = GetEntityPack(type, id, partitionId);
-            ep.canExecute = new Dictionary<string, string>();
+            ep.canExecute = new Dictionary<string, string?>();
             ep.extension = new Dictionary<string, object?>();
             return ep;
         }
