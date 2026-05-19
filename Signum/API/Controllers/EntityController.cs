@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Identity.Client;
 using Signum.API.Filters;
 using System.ComponentModel.DataAnnotations;
 
