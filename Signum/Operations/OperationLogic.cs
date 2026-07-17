@@ -245,15 +245,20 @@ public static class OperationLogic
             var types = Schema.Current.Tables.Keys
                 .Where(t => EntityKindCache.GetAttribute(t) == null);
 
+
+
+            var referedBy= types.Select(t => new {t, refered= Schema.Current.GetTablesReferencing(t).ToString(",")}).ToString(",");
+
+
             if (types.Any())
-                throw new InvalidOperationException($"{0} has not EntityTypeAttribute".FormatWith(types.Select(a => "'" + a.TypeName() + "'").CommaAnd()));
+                throw new InvalidOperationException($"{0} has not EntityTypeAttribute {1}".FormatWith(types.Select(a => "'" + a.TypeName() + "'").CommaAnd(), referedBy));
 
             var errors = (from t in Schema.Current.Tables.Keys
                           let attr = EntityKindCache.GetAttribute(t)
                           where attr.RequiresSaveOperation && !HasSaveLike(t)
                           select attr.IsRequiresSaveOperationOverriden ?
-                            "'{0}' has '{1}' set to true, but no operation for saving has been implemented.".FormatWith(t.TypeName(), nameof(attr.RequiresSaveOperation)) :
-                            "'{0}' is 'EntityKind.{1}', but no operation for saving has been implemented.".FormatWith(t.TypeName(), attr.EntityKind)).ToList();
+                            "'{0}' has '{1}' set to true, but no operation for saving has been implemented. Refered by {2}".FormatWith(t.TypeName(), nameof(attr.RequiresSaveOperation), Schema.Current.GetTablesReferencing(t).ToString(",")) :
+                            "'{0}' is 'EntityKind.{1}', but no operation for saving has been implemented. Refered by {2}".FormatWith(t.TypeName(), attr.EntityKind, Schema.Current.GetTablesReferencing(t).ToString(","))).ToList();
 
             if (errors.Any())
                 throw new InvalidOperationException(errors.ToString("\n") + @"

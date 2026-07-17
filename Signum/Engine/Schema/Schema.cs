@@ -913,6 +913,17 @@ public class Schema : IImplementationsFinder
         return DirectedEdgedGraph<Table, RelationInfo>.Generate(Tables.Values, t => t.DependentTables());
     }
 
+    public IEnumerable<Table> GetTablesReferencing(Type type)
+    {
+        var targetTable = Table(type);
+        return Tables.Values.Where(t => t.DependentTables().Any(kvp => kvp.Key == targetTable));
+    }
+
+    public IEnumerable<Table> GetTablesReferencing<T>() where T : Entity
+    {
+        return GetTablesReferencing(typeof(T));
+    }
+
     public Type GetType(PrimaryKey id)
     {
         return typeCachesLazy.Value.IdToType[id];
