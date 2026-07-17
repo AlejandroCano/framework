@@ -41,7 +41,7 @@ export default function Dashboard(p: { ctx: TypeContext<DashboardEntity> }): Rea
 
   function handleOnCreate() {
     const pr = DashboardEntity.memberInfo(a => a.parts![0].element.content);
-    return SelectorModal.chooseType(getTypeInfos(pr.type), {
+    return SelectorModal.chooseType(getTypeInfos(pr.type).filter(ti => DashboardClient.partRenderers[ti.name] != null), {
       size: "def" as any,
       buttonDisplay: ti => {
         var icon = DashboardClient.icon(ti);

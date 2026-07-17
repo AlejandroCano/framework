@@ -218,7 +218,7 @@ export namespace DashboardClient {
   }
 
   export function icon(type: PseudoType): IconColor {
-    return partRenderers[getTypeName(type)].icon();
+    return partRenderers[getTypeName(type)]?.icon() ?? { icon: "question", iconColor: "gray" };
   }
 
   export function getQueryNames(part: IPartEntity): QueryEntity[] {
