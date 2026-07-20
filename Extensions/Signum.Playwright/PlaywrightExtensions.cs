@@ -82,6 +82,7 @@ public static class PlaywrightExtensions
         await locator.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Visible,
+            Timeout = timeout,
         });
 
         if (scrollTo)
