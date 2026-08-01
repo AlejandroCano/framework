@@ -22,7 +22,7 @@ public class UserEntity : Entity, IEmailOwnerEntity, IUserEntity
     }
 
     [UniqueIndex(AvoidAttachToUniqueIndexes = true)]
-    [StringLengthValidator(Min = 2, Max = 100)]
+    [StringLengthValidator(Min = 2, Max = 200)]
     public string UserName { get; set; }
 
     [DbType(Size = 128), QueryableProperty(false)]
