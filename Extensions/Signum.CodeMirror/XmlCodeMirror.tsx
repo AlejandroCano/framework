@@ -18,6 +18,10 @@ import "codemirror/addon/hint/show-hint"
 import "codemirror/addon/search/match-highlighter"
 import "codemirror/addon/search/search"
 import "codemirror/addon/search/searchcursor"
+import "codemirror/addon/fold/foldcode"
+import "codemirror/addon/fold/foldgutter"
+import "codemirror/addon/fold/xml-fold"
+import "codemirror/addon/fold/foldgutter.css"
 
 interface XmlCodeMirrorProps {
   script: string;
@@ -31,6 +35,8 @@ export default function XmlCodeMirror(p: XmlCodeMirrorProps): React.JSX.Element 
   const options = {
     lineNumbers: true,
     mode: "application/xml",
+    foldGutter: true,
+    gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
     extraKeys: {
       "Ctrl-Space": "autocomplete",
       "Ctrl-K": (cm: any) => cm.lineComment(cm.getCursor(true), cm.getCursor(false)),
