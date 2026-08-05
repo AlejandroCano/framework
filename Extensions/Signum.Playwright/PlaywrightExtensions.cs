@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Signum.Playwright;
 
@@ -48,7 +49,7 @@ public static class PlaywrightExtensions
     #endregion
 
     #region Focus and Input
-    
+
     /// <summary>
     /// Simulates losing focus by pressing the Tab key, mimicking Selenium's LoseFocus behavior.
     /// This is crucial for triggering onBlur events in React components like DateTimeLine.
@@ -57,7 +58,7 @@ public static class PlaywrightExtensions
     {
         await locator.PressAsync("Tab");
     }
-    
+
     #endregion
 
     #region Wait Methods
@@ -267,8 +268,16 @@ public static class PlaywrightExtensions
                 const hasClass = el.classList.contains(cls);
                 return shouldHave == hasClass;
             }",
-            new object[]{ await locator.ElementHandleAsync(), className, shouldHave }
+            new object[] { await locator.ElementHandleAsync(), className, shouldHave }
         );
+    }
+
+    public static async Task WaitHasClassAsync(this ILocator locator, Regex classRegex, bool shouldHave)
+    {
+        if (shouldHave)
+            await Assertions.Expect(locator).ToHaveClassAsync(classRegex);
+        else
+            await Assertions.Expect(locator).Not.ToHaveClassAsync(classRegex);
     }
 
     public static async Task WaitAttributeAsync(this ILocator locator, string attributeName, string? expectedValue, string op = "===")
@@ -334,7 +343,7 @@ public static class PlaywrightExtensions
     /// Strips the "Locator@" prefix, removes Playwright-specific "nth=N" parts,
     /// and replaces " >> " descendant separators with a space.
     /// </summary>
-    public static string ToCssSelector_QueryAll(this ILocator locator) => $"document.querySelectorAll(\"{locator.ToCssSelector()}\")"; 
+    public static string ToCssSelector_QueryAll(this ILocator locator) => $"document.querySelectorAll(\"{locator.ToCssSelector()}\")";
     public static string ToCssSelector(this ILocator locator)
     {
         var selector = locator.ToString()!.After('@');
@@ -421,7 +430,7 @@ public static class PlaywrightExtensions
     /// </summary>
     public static async Task<ILocator> CaptureOnClickAsync(this ILocator button)
     {
-        return await button.Page.CaptureModalAsync(()=> button.ClickAsync());
+        return await button.Page.CaptureModalAsync(() => button.ClickAsync());
     }
 
     public static async Task MoveMouseAsync(this ILocator button, float xRatio = .5f, float yRatio = .5f)
@@ -434,7 +443,7 @@ public static class PlaywrightExtensions
 
     public static async Task<ILocator> CaptureOnDoubleClickAsync(this ILocator button)
     {
-        return await button.Page.CaptureModalAsync(()=> button.DoubleClickAsync());
+        return await button.Page.CaptureModalAsync(() => button.DoubleClickAsync());
     }
 
     #endregion
@@ -487,4 +496,13 @@ public static class PlaywrightExtensions
 
     #endregion
 
+}
+
+public static partial class ClassRegexes
+{
+    [GeneratedRegex(@"\bselected\b")]
+    public static partial Regex Selected();
+
+    [GeneratedRegex(@"\bdisabled\b")]
+    public static partial Regex Disabled();
 }
