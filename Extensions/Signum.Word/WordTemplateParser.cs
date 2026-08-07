@@ -7,6 +7,7 @@ using Signum.Utilities.DataStructures;
 using System.Text.RegularExpressions;
 using Signum.Templating;
 using Signum.DynamicQuery.Tokens;
+using Signum.Word.Spreedsheet;
 
 namespace Signum.Word;
 
@@ -16,6 +17,10 @@ public class WordTemplateParser : ITemplateParser
     public QueryDescription? QueryDescription { get; private set; }
     public ScopedDictionary<string, ValueProviderBase> Variables { get; private set; } = null!;
     public Type? ModelType { get; private set; }
+
+    // Row-level @foreach blocks found in spreadsheets, captured before the block is collapsed so the
+    // finalizer can renumber rows and fix formula ranges. Each block remembers its worksheet.
+    public List<SpreadsheetForeachBlock> SpreadsheetForeachBlocks = new();
 
     OpenXmlPackage document;
     WordTemplateEntity template;
@@ -33,6 +38,19 @@ public class WordTemplateParser : ITemplateParser
 
     public void ParseDocument()
     {
+        if (document is SpreadsheetDocument ssd && ssd.WorkbookPart is { } wb)
+        {
+            // Shared formulas would duplicate their shared index/range when a template row is cloned,
+            // corrupting the workbook; expand them to standalone formulas up front.
+            SpreadsheetUtils.DeshareFormulas(wb);
+
+            // Spreadsheets store cell text in a shared, deduplicated string pool (sharedStrings.xml)
+            // that is detached from the sheet's row/cell structure. Move token-bearing strings into
+            // the cells as inline strings first, so tokens (and specially @foreach/@if blocks) can be
+            // resolved against the worksheet rows instead of the flat string pool.
+            SpreadsheetUtils.InlineTokens(wb);
+        }
+
         foreach (var part in document.AllParts().Where(p => p.RootElement != null))
         {
             foreach (var item in part.RootElement!.Descendants())
@@ -43,8 +61,8 @@ public class WordTemplateParser : ITemplateParser
                 if (item is D.Paragraph dp)
                     ReplaceRuns(dp, new DrawingNodeProvider());
 
-                if (item is S.SharedStringItem s)
-                    ReplaceRuns(s, new SpreadsheetNodeProvider());
+                if (item is S.InlineString istr)
+                    ReplaceRuns(istr, new SpreadsheetNodeProvider());
             }
 
 
@@ -229,7 +247,7 @@ public class WordTemplateParser : ITemplateParser
                                 ConditionBase cond = TemplateUtils.ParseCondition(expr, variable, this);
                                 AnyNode any = new AnyNode(matchNode.NodeProvider, cond)
                                 {
-                                    AnyToken = new MatchNodePair(matchNode)
+                                    AnyToken = matchNode
                                 };
                                 PushBlock(any);
 
@@ -242,7 +260,7 @@ public class WordTemplateParser : ITemplateParser
                                 var an = PeekBlock<AnyNode>();
                                 if (an != null)
                                 {
-                                    an.NotAnyToken = new MatchNodePair(matchNode);
+                                    an.NotAnyToken = matchNode;
                                 }
                                 break;
                             }
@@ -251,7 +269,7 @@ public class WordTemplateParser : ITemplateParser
                                 var an = PopBlock<AnyNode>();
                                 if (an != null)
                                 {
-                                    an.EndAnyToken = new MatchNodePair(matchNode);
+                                    an.EndAnyToken = matchNode;
 
                                     an.ReplaceBlock();
                                 }
@@ -262,7 +280,7 @@ public class WordTemplateParser : ITemplateParser
                                 var cond = TemplateUtils.ParseCondition(expr, variable, this);
                                 IfNode ifn = new IfNode(matchNode.NodeProvider, cond)
                                 {
-                                    IfToken = new MatchNodePair(matchNode)
+                                    IfToken = matchNode
                                 };
                                 PushBlock(ifn);
 
@@ -271,12 +289,24 @@ public class WordTemplateParser : ITemplateParser
 
                                 break;
                             }
+                        case "elseif":
+                            {
+                                var ifn = PeekBlock<IfNode>();
+                                if (ifn != null)
+                                {
+                                    var cond = TemplateUtils.ParseCondition(expr, variable, this);
+                                    ifn.ElseIfBranches.Add((matchNode, cond, null));
+                                    if (cond is ConditionCompare cc)
+                                        DeclareVariable(cc.ValueProvider);
+                                }
+                                break;
+                            }
                         case "else":
                             {
                                 var an = PeekBlock<IfNode>();
                                 if (an != null)
                                 {
-                                    an.ElseToken = new MatchNodePair(matchNode);
+                                    an.ElseToken = matchNode;
                                 }
                                 break;
                             }
@@ -285,7 +315,7 @@ public class WordTemplateParser : ITemplateParser
                                 var ifn = PopBlock<IfNode>();
                                 if (ifn != null)
                                 {
-                                    ifn.EndIfToken = new MatchNodePair(matchNode);
+                                    ifn.EndIfToken = matchNode;
 
                                     ifn.ReplaceBlock();
                                 }
@@ -297,7 +327,7 @@ public class WordTemplateParser : ITemplateParser
                                 if (vp is TokenValueProvider tvp && tvp.ParsedToken.QueryToken != null && QueryToken.IsCollection(tvp.ParsedToken.QueryToken.Type))
                                     AddError(false, $"@foreach[{expr}] is a collection, missing 'Element' token at the end");
 
-                                var fn = new ForeachNode(matchNode.NodeProvider, vp!) { ForeachToken = new MatchNodePair(matchNode) };
+                                var fn = new ForeachNode(matchNode.NodeProvider, vp!) { ForeachToken = matchNode };
                                 PushBlock(fn);
 
                                 DeclareVariable(vp);
@@ -308,7 +338,16 @@ public class WordTemplateParser : ITemplateParser
                                 var fn = PopBlock<ForeachNode>();
                                 if (fn != null)
                                 {
-                                    fn.EndForeachToken = new MatchNodePair(matchNode);
+                                    fn.EndForeachToken = matchNode;
+
+                                    if (fn.NodeProvider is SpreadsheetNodeProvider)
+                                    {
+                                        var ws = fn.ForeachToken.Ancestors<S.Worksheet>().FirstOrDefault();
+                                        var rf = fn.ForeachToken.Ancestors<S.Row>().FirstOrDefault()?.RowIndex?.Value;
+                                        var re = matchNode.Ancestors<S.Row>().FirstOrDefault()?.RowIndex?.Value;
+                                        if (ws != null && rf != null && re != null)
+                                            SpreadsheetForeachBlocks.Add(new SpreadsheetForeachBlock(ws, (int)rf.Value, (int)re.Value));
+                                    }
 
                                     fn.ReplaceBlock();
                                 }
@@ -334,10 +373,10 @@ public class WordTemplateParser : ITemplateParser
         return new Disposable(() =>
         {
             if (!stack.IsEmpty())
-                AddError(true, "Missing ".FormatWith(stack.ToString(a =>
-                a is IfNode ? "#endif" :
-                a is AnyNode ? "#endany" :
-                a is ForeachNode ? "#endforeach" :
+                AddError(true, "Missing {0}".FormatWith(stack.ToString(a =>
+                a is IfNode ? "@endif" :
+                a is AnyNode ? "@endany" :
+                a is ForeachNode ? "@endforeach" :
                 throw new UnexpectedValueException(a), ", ")));
         });
     }

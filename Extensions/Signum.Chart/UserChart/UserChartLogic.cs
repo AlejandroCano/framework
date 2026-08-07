@@ -6,6 +6,7 @@ using Signum.Toolbar;
 using Signum.UserAssets;
 using Signum.UserAssets.Queries;
 using Signum.UserAssets.QueryTokens;
+using Signum.UserAssets.TokenMigrations;
 using Signum.ViewLog;
 using System.Collections.Frozen;
 
@@ -20,15 +21,29 @@ public static class UserChartLogic
     [AutoExpressionField]
     public static IQueryable<CachedQueryEntity> CachedQueries(this UserChartEntity uc) =>
         As.Expression(() => Database.Query<CachedQueryEntity>().Where(a => a.UserAssets.Contains(uc.ToLite())));
-    
+
+    [AutoExpressionField]
+    public static IQueryable<DashboardEntity> Dashboards(this UserChartEntity uc) =>
+        As.Expression(() => Database.Query<DashboardEntity>().Where(d =>
+            TypeLogic.IsIncluded<UserChartPartEntity>() && d.Parts.Any(p => ((UserChartPartEntity)p.Content).UserChart.Is(uc)) ||
+            TypeLogic.IsIncluded<CombinedUserChartPartEntity>() && d.Parts.Any(p => ((CombinedUserChartPartEntity)p.Content).UserCharts.Any(e => e.UserChart.Is(uc)))));
+
+
+    [AutoExpressionField]
+    public static bool InToolbar(this UserChartEntity uq) =>
+    As.Expression(() =>
+        Database.Query<ToolbarEntity>().Any(t => t.Elements.Any(e => e.Content.Is(uq))) ||
+        Database.Query<ToolbarMenuEntity>().Any(t => t.Elements.Any(e => e.Content.Is(uq)))
+    );
+
     public static void Start(SchemaBuilder sb)
     {
         if (sb.AlreadyDefined(MethodInfo.GetCurrentMethod()))
             return;
 
         UserAssetsImporter.Register<UserChartEntity>("UserChart", UserChartOperation.Save);
-
-        sb.Schema.Synchronizing += Schema_Synchronizing;
+        
+        TokenMigrationLogic.TokenSynchronizing += TokenMigration_Sync;
 
         sb.Include<UserChartEntity>()
             .WithExpressionTo((UserChartEntity d) => d.CachedQueries())
@@ -62,6 +77,8 @@ public static class UserChartLogic
                 },
                 GetRelatedQuery = lite => lite.RetrieveUserChart().Query,
             }.Register();
+
+            QueryLogic.Expressions.Register((UserChartEntity uc) => uc.InToolbar());
         });
 
         sb.Schema.WhenIncluded<CachedQueryEntity>(() =>
@@ -74,20 +91,17 @@ public static class UserChartLogic
             
             sb.Schema.Settings.AssertImplementedBy((DashboardEntity d) => d.Parts.First().Content, typeof(UserChartPartEntity));
 
+            QueryLogic.Expressions.Register((UserChartEntity uc) => uc.Dashboards(), () => typeof(DashboardEntity).NicePluralName());
+
             DashboardLogic.PartNames.AddRange(new Dictionary<string, Type>
             {
                 {"UserChartPart", typeof(UserChartPartEntity)},
             });
 
+            sb.Include<UserChartPartEntity>()
+                .WithCascadeDeleteBy(a => a.UserChart);
+
             DashboardLogic.OnGetCachedQueryDefinition.Register((UserChartPartEntity ucp, PanelPartEmbedded pp) => new[] { new CachedQueryDefinition(ucp.UserChart.ToChartRequest().ToQueryRequest(), ucp.UserChart.Filters.GetDashboardPinnedFilterTokens(), pp, ucp.UserChart, ucp.IsQueryCached, canWriteFilters: true) });
-
-            sb.Schema.EntityEvents<UserChartEntity>().PreUnsafeDelete += query =>
-            {
-                Database.MListQuery((DashboardEntity cp) => cp.Parts).Where(mle => query.Contains(((UserChartPartEntity)mle.Element.Content).UserChart)).UnsafeDeleteMList();
-                Database.Query<UserChartPartEntity>().Where(uqp => query.Contains(uqp.UserChart)).UnsafeDelete();
-
-                return null;
-            };
 
             sb.Schema.EntityEvents<QueryEntity>().PreDeleteSqlSync += q =>
             {
@@ -138,9 +152,7 @@ public static class UserChartLogic
                         Database.MListQuery((CombinedUserChartPartEntity e) => e.UserCharts).Where(mle => mle.Element.UserChart.Query.Is(query)));
                 return SqlPreCommand.Combine(Spacing.Simple, parts);
             };
-            
         });
-
 
         AuthLogic.HasRuleOverridesEvent += role => Database.Query<UserChartEntity>().Any(a => a.Owner.Is(role));
 
@@ -291,29 +303,74 @@ public static class UserChartLogic
         DashboardLogic.RegisterTypeConditionForPart<CombinedUserChartPartEntity>(typeCondition);
     }
 
-    static SqlPreCommand? Schema_Synchronizing(Replacements replacements)
+    internal static void TokenMigration_Sync(TokenSyncContext ctx)
     {
-        if (!replacements.Interactive)
-            return null;
-
         QueryLogic.AssertLoaded();
         TypeLogic.AssertLoaded();
 
-        var list = Database.Query<UserChartEntity>().ToList();
+        foreach (var uc in Database.Query<UserChartEntity>().ToList())
+            ProcessUserChart(ctx, uc);
+    }
 
-        var table = Schema.Current.Table(typeof(UserChartEntity));
+    static void SkipUserChart(TokenSyncContext ctx, UserChartEntity uc)
+    {
+        if (ctx.Mode == TokenSyncMode.Record)
+            ctx.AddUserAssetAction(uc, UserAssetEntityActionType.Skip);
+    }
 
-        using (replacements.WithReplacedDatabaseName())
+    static void DeleteUserChart(TokenSyncContext ctx, UserChartEntity uc)
+    {
+        if (ctx.Mode == TokenSyncMode.Record)
         {
-            SqlPreCommand? cmd = list.Select(uq => ProcessUserChart(replacements, table, uq)).Combine(Spacing.Double);
-
-            return cmd;
+            ctx.AddUserAssetAction(uc, UserAssetEntityActionType.Delete);
+        }
+        else
+        {
+            using (var tr = Transaction.ForceNew())
+            {
+                uc.Delete();
+                tr.Commit();
+            }
         }
     }
 
-    static SqlPreCommand? ProcessUserChart(Replacements replacements, Table table, UserChartEntity uc)
+    static void SaveUserChart(UserChartEntity uc)
     {
+        using (var tr = Transaction.ForceNew())
+        {
+            using (OperationLogic.AllowSave<UserChartEntity>())
+                uc.Save();
+            tr.Commit();
+        }
+    }
+
+    static void ProcessUserChart(TokenSyncContext ctx, UserChartEntity uc)
+    {
+        if (ctx.Mode == TokenSyncMode.Apply && ctx.IsKnownAction(uc, out var preAction))
+        {
+            try
+            {
+                switch (preAction)
+                {
+                    case UserAssetEntityActionType.Skip: SkipUserChart(ctx, uc); return;
+                    case UserAssetEntityActionType.Delete: DeleteUserChart(ctx, uc); return;
+                    case UserAssetEntityActionType.Regenerate:
+                        // Regenerate isn't meaningful for UserChart; treat as Skip.
+                        SkipUserChart(ctx, uc);
+                        return;
+                }
+            }
+            catch (Exception ex)
+            {
+                ctx.LogError(uc, ex);
+                return;
+            }
+        }
+
         Console.Write(".");
+        var changes = new List<string>();
+        bool entityTouched = false;
+
         using (DelayedConsole.Delay(() => SafeConsole.WriteLineColor(ConsoleColor.White, "UserChart: " + uc.DisplayName)))
         using (DelayedConsole.Delay(() => Console.WriteLine(" ChartScript: " + uc.ChartScript.ToString())))
         using (DelayedConsole.Delay(() => Console.WriteLine(" Query: " + uc.Query.Key)))
@@ -331,18 +388,17 @@ public static class UserChartLogic
                         {
                             foreach (var item in uc.Filters.ToList())
                             {
-                                if (item.Token != null)
+                                if (item.Token == null) continue;
+
+                                QueryTokenEmbedded token = item.Token;
+                                var r = QueryTokenSynchronizer.FixToken(ctx, ref token, qd, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | SubTokensOptions.CanAggregate, " {0} {1}".FormatWith(item.Operation, item.ValueString), allowRemoveToken: true, allowReCreate: false);
+                                switch (r)
                                 {
-                                    QueryTokenEmbedded token = item.Token;
-                                    switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | SubTokensOptions.CanAggregate, " {0} {1}".FormatWith(item.Operation, item.ValueString), allowRemoveToken: true, allowReCreate: false))
-                                    {
-                                        case FixTokenResult.Nothing: break;
-                                        case FixTokenResult.DeleteEntity: return DeleteSQl(table, uc);
-                                        case FixTokenResult.RemoveToken: uc.Filters.Remove(item); break;
-                                        case FixTokenResult.SkipEntity: return null;
-                                        case FixTokenResult.Fix: item.Token = token; break;
-                                        default: break;
-                                    }
+                                    case FixTokenResult.Nothing: break;
+                                    case FixTokenResult.RemoveToken: uc.Filters.Remove(item); entityTouched = true; changes.Add("filter removed"); break;
+                                    case FixTokenResult.Fix: item.Token = token; entityTouched = true; changes.Add("filter -> " + token.TokenString); break;
+                                    case FixTokenResult.SkipEntity: SkipUserChart(ctx, uc); return;
+                                    case FixTokenResult.DeleteEntity: DeleteUserChart(ctx, uc); return;
                                 }
                             }
                         }
@@ -354,18 +410,17 @@ public static class UserChartLogic
                         {
                             foreach (var item in uc.Columns.ToList())
                             {
-                                if (item.Token == null)
-                                    continue;
+                                if (item.Token == null) continue;
 
                                 QueryTokenEmbedded token = item.Token;
-                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, SubTokensOptions.CanElement | SubTokensOptions.CanAggregate, " " + item.ScriptColumn.DisplayName, allowRemoveToken: item.ScriptColumn.IsOptional, allowReCreate: false))
+                                var r = QueryTokenSynchronizer.FixToken(ctx, ref token, qd, SubTokensOptions.CanElement | SubTokensOptions.CanAggregate, " " + item.ScriptColumn.DisplayName, allowRemoveToken: item.ScriptColumn.IsOptional, allowReCreate: false);
+                                switch (r)
                                 {
                                     case FixTokenResult.Nothing: break;
-                                    case FixTokenResult.DeleteEntity: return DeleteSQl(table, uc);
-                                    case FixTokenResult.RemoveToken: item.Token = null; break;
-                                    case FixTokenResult.SkipEntity: return null;
-                                    case FixTokenResult.Fix: item.Token = token; break;
-                                    default: break;
+                                    case FixTokenResult.RemoveToken: item.Token = null; entityTouched = true; changes.Add("column token removed"); break;
+                                    case FixTokenResult.Fix: item.Token = token; entityTouched = true; changes.Add("column -> " + token.TokenString); break;
+                                    case FixTokenResult.SkipEntity: SkipUserChart(ctx, uc); return;
+                                    case FixTokenResult.DeleteEntity: DeleteUserChart(ctx, uc); return;
                                 }
                             }
                         }
@@ -378,98 +433,65 @@ public static class UserChartLogic
                 {
                 retry:
                     string? val = item.ValueString;
-                    switch (QueryTokenSynchronizer.FixValue(replacements, item.Token!.Token.Type, ref val, allowRemoveToken: true, isList: item.Operation!.Value.IsList(), fixInstead: true, entityType))
+                    switch (QueryTokenSynchronizer.FixValue(ctx, uc.Query.Key, item.Token!.TokenString, item.Token!.Token.Type, ref val, allowRemoveToken: true, isListOrPair: item.Operation!.Value.IsListOrPair(), fixInstead: true, entityType))
                     {
                         case FixTokenResult.Nothing: break;
-                        case FixTokenResult.DeleteEntity: return DeleteSQl(table, uc);
-                        case FixTokenResult.RemoveToken: uc.Filters.Remove(item); break;
-                        case FixTokenResult.SkipEntity: return null;
-                        case FixTokenResult.Fix: item.ValueString = val; goto retry;
+                        case FixTokenResult.RemoveToken: uc.Filters.Remove(item); entityTouched = true; changes.Add("filter value removed"); break;
+                        case FixTokenResult.Fix: item.ValueString = val; entityTouched = true; changes.Add("filter value -> " + val); goto retry;
                         case FixTokenResult.FixTokenInstead:
-
-                            QueryTokenEmbedded token = item.Token;
-                            switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | SubTokensOptions.CanAggregate,
+                            QueryTokenEmbedded itoken = item.Token;
+                            switch (QueryTokenSynchronizer.FixToken(ctx, ref itoken, qd, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | SubTokensOptions.CanAggregate,
                                 " {0} {1}".FormatWith(item.Operation, item.ValueString), allowRemoveToken: true, allowReCreate: false, forceChange: true))
                             {
                                 case FixTokenResult.Nothing: break;
-                                case FixTokenResult.DeleteEntity: return DeleteSQl(table, uc);
-                                case FixTokenResult.RemoveToken: uc.Filters.Remove(item); break;
-                                case FixTokenResult.SkipEntity: return null;
-                                case FixTokenResult.Fix:
-                                    item.Token = token;
-                                    goto retry;
-                                default: break;
+                                case FixTokenResult.RemoveToken: uc.Filters.Remove(item); entityTouched = true; changes.Add("filter removed"); break;
+                                case FixTokenResult.Fix: item.Token = itoken; entityTouched = true; changes.Add("filter -> " + itoken.TokenString); goto retry;
+                                case FixTokenResult.SkipEntity: SkipUserChart(ctx, uc); return;
+                                case FixTokenResult.DeleteEntity: DeleteUserChart(ctx, uc); return;
                             }
                             break;
 
                         case FixTokenResult.FixOperationInstead:
                             var newOperation = SafeConsole.AskMultiLine($"New filter operation for: {item.Token} {item.Operation} {item.ValueString}?", EnumEntity.GetValues(typeof(FilterOperation)).Select(a => a.ToString()).ToArray());
-                            if (newOperation != null)
-                                item.Operation = Enum.Parse<FilterOperation>(newOperation);
+                            if (newOperation != null) { item.Operation = Enum.Parse<FilterOperation>(newOperation); entityTouched = true; changes.Add("filter operation -> " + newOperation); }
                             goto retry;
+                        case FixTokenResult.SkipEntity: SkipUserChart(ctx, uc); return;
+                        case FixTokenResult.DeleteEntity: DeleteUserChart(ctx, uc); return;
                     }
                 }
 
                 foreach (var item in uc.Columns)
-                {
                     uc.FixParameters(item);
-                }
 
                 foreach (var item in uc.Parameters)
                 {
                     string? val = item.Value;
-                retry:
+                retryP:
                     switch (FixParameter(item, ref val))
                     {
                         case FixTokenResult.Nothing: break;
-                        case FixTokenResult.DeleteEntity: return DeleteSQl(table, uc);
-                        case FixTokenResult.RemoveToken: uc.Parameters.Remove(item); break;
-                        case FixTokenResult.SkipEntity: return null;
-                        case FixTokenResult.Fix: { item.Value = val; goto retry; }
+                        case FixTokenResult.RemoveToken: uc.Parameters.Remove(item); entityTouched = true; changes.Add("parameter removed"); break;
+                        case FixTokenResult.Fix: item.Value = val; entityTouched = true; changes.Add("parameter -> " + val); goto retryP;
+                        case FixTokenResult.SkipEntity: SkipUserChart(ctx, uc); return;
+                        case FixTokenResult.DeleteEntity: DeleteUserChart(ctx, uc); return;
                     }
                 }
 
+                if (!entityTouched) return;
 
-                try
+                if (ctx.Mode == TokenSyncMode.Apply)
                 {
-                    return table.UpdateSqlSync(uc, u => u.Guid == uc.Guid && u.Ticks == uc.Ticks, includeCollections: true)?.TransactionBlock($"UserChart Guid = {uc.Guid} Ticks = {uc.Ticks} ({uc})"); ;
-                }
-                catch (Exception e)
-                {
-                    DelayedConsole.Flush();
-                    Console.WriteLine("Integrity Error:");
-                    SafeConsole.WriteLineColor(ConsoleColor.DarkRed, e.Message);
-                    while (true)
+                    try
                     {
-                        SafeConsole.WriteLineColor(ConsoleColor.Yellow, "- s: Skip entity");
-                        SafeConsole.WriteLineColor(ConsoleColor.Red, "- d: Delete entity");
-
-                        string? answer = Console.ReadLine();
-
-                        if (answer == null)
-                            throw new InvalidOperationException("Impossible to synchronize interactively without Console");
-
-                        answer = answer.ToLower();
-
-                        if (answer == "s")
-                            return null;
-
-                        if (answer == "d")
-                            return table.DeleteSqlSync(uc, u => u.Guid == uc.Guid)?.TransactionBlock($"UserChart Guid = {uc.Guid}");
+                        SaveUserChart(uc);
                     }
+                    catch (Exception ex) { ctx.LogError(uc, ex); }
                 }
             }
-            catch (Exception e)
-            {
-                return new SqlPreCommandSimple("-- Exception on {0}\n{1}".FormatWith(uc.BaseToString(), e.Message.Indent(2, '-')));
-            }
-        }
-
-        static SqlPreCommand? DeleteSQl(Table table, UserChartEntity uc)
-        {
-            return table.DeleteSqlSync(uc, u => u.Guid == uc.Guid)?.TransactionBlock($"UserChart Guid = {uc.Guid}");
+            catch (Exception ex) { ctx.LogError(uc, ex); }
         }
     }
+
 
     private static FixTokenResult FixParameter(ChartParameterEmbedded item, ref string? val)
     {
