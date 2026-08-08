@@ -285,7 +285,7 @@ public class ResultRowProxy
 
     public ILocator SelectedCheckbox => Locator.Locator("input.sf-td-selection");
 
-    public ILocator CellElement(int columnIndex) => Locator.Locator($"td[data-column-index={columnIndex}]");
+    public ILocator CellElement(int columnIndex) => Locator.Locator($"td[data-column-index='{columnIndex}']");
 
     public ILocator EntityLink() => Locator.Locator($"td:nth-child(2):not([data-column-index])").Locator("a");
 
