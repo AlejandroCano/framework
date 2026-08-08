@@ -14,19 +14,27 @@ public class QueryTokenPartProxy
 
     public async Task SelectAsync(string? fullKey)
     {
-        var isVisible = await Element.Locator(".rw-popup-container").IsVisibleAsync();
+        var dropdownContainer = Element.Locator(".rw-popup-container");
+        var isVisible = await dropdownContainer.IsVisibleAsync();
         if (!isVisible)
         {
             await Element.Locator(".rw-dropdown-list, .sf-query-token-plus").ClickAsync();
+            await dropdownContainer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
         }
-
-        var dropdownContainer = Element.Locator(".rw-popup-container");
-        await dropdownContainer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
 
         var tokenSelector = !string.IsNullOrEmpty(fullKey) ? $"[data-full-token='{fullKey}']" : ":not([0])";
         var optionElement = dropdownContainer.Locator($"div > span{tokenSelector}");
         await optionElement.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
-        await optionElement.ClickAsync();
+
+        await optionElement.ScrollIntoViewIfNeededAsync();
+        try
+        {
+            await optionElement.ClickAsync();
+        }
+        catch (Exception)
+        {
+            await optionElement.ClickAsync(new() { Force = true });
+        }
 
         await Element.Locator($".rw-dropdown-list-value span{tokenSelector}")
                      .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
