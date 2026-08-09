@@ -84,7 +84,7 @@ public class ResultTableProxy
 
     public async Task SelectAllRowsAsync()
     {
-        var rowCount = await RowsCountAsync();  
+        var rowCount = await RowsCountAsync();
 
         await SelectRowsAsync(0.To(rowCount).ToArray());
     }
@@ -227,7 +227,7 @@ public class ResultTableProxy
     async Task<ILocator> ContextMenuAsync_Private(int rowIndex, string columnToken)
     {
         var cell = await CellElementAsync(rowIndex, columnToken);
-
+        await cell.WaitVisibleAsync();
         await cell.ScrollIntoViewIfNeededAsync();
         await cell.ClickAsync(new() { Button = MouseButton.Right });
 
@@ -241,6 +241,7 @@ public class ResultTableProxy
     async Task<ILocator> ContextMenu_Private(Lite<Entity> lite, string columnToken, int? subRowIndex)
     {
         var cell = await CellElementAsync(lite, columnToken, subRowIndex);
+        await cell.WaitVisibleAsync();
         await cell.ScrollIntoViewIfNeededAsync();
         await cell.ClickAsync(new() { Button = MouseButton.Right });
         var menu = await this.SearchControl.WaitContextMenuAsync();
@@ -253,7 +254,7 @@ public class ResultTableProxy
     {
         await this.Element.Page.WaitForFunctionAsync(
             @"([table, locator, count]) => table.querySelectorAll(locator).length === count",
-            new object[] { await this.Element.ElementHandleAsync(),  "tbody > tr[data-entity]", rows });
+            new object[] { await this.Element.ElementHandleAsync(), "tbody > tr[data-entity]", rows });
     }
 
     public async Task WaitSuccessAsync(List<Lite<IEntity>> lites)
@@ -296,7 +297,7 @@ public class ResultRowProxy
 
         if (liteKey == null)
             return null;
-     
+
         return Lite.Parse<Entity>(liteKey);
     }
 
