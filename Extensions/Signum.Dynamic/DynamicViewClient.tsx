@@ -384,20 +384,15 @@ export namespace DynamicViewClient {
   }
   
   export function createDefaultDynamicView(typeName: string): Promise<DynamicViewEntity> {
-    return loadNodes().then(nodes =>
-      Navigator.API.getType(typeName).then(t => DynamicViewEntity.New({
+    return Navigator.API.getType(typeName).then(t => DynamicViewEntity.New({
         entityType: t!,
         viewName: "My View",
         locals: `{
     const forceUpdate = modules.Hooks.useForceUpdate();
     return { forceUpdate };
   }`,
-        viewContent: JSON.stringify(nodes.NodeConstructor.createDefaultNode(getTypeInfo(typeName))),
-      })));
-  }
-  
-  export function loadNodes(): Promise<typeof Nodes> {
-    return import("./View/Nodes");
+        viewContent: JSON.stringify(Nodes.NodeConstructor.createDefaultNode(getTypeInfo(typeName))),
+      }));
   }
   
   export function getDynamicViewEntity(typeName: string, viewName: string): ViewPromise<ModifiableEntity> {
