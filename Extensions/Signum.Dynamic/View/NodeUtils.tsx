@@ -514,7 +514,7 @@ export function evalWithScope(code: string, modules: any, props: any, locals: an
   // Lines
   var AutoLine = Lines.AutoLine;
 
-  return eval(code);
+  return (0, eval)(code);
 }
 
 export function asFieldFunction(field: string): (e: ModifiableEntity) => any {
@@ -523,7 +523,7 @@ export function asFieldFunction(field: string): (e: ModifiableEntity) => any {
   const code = "(function(e){ return " + fixedRoute + ";})";
 
   try {
-    return eval(code);
+    return (0, eval)(code);
   } catch (e) {
     throw new Error("Syntax in '" + fixedRoute + "':\n" + code + "\n" + (e as Error).message);
   }

@@ -1,4 +1,4 @@
-﻿import * as React from 'react'
+import * as React from 'react'
 import { RouteObject } from 'react-router'
 import { Duration, DurationUnit } from 'luxon';
 import { ifError, Dic } from '@framework/Globals';
@@ -869,7 +869,7 @@ export namespace WorkflowClient {
     var viewPromise = Navigator.getViewDispatcher().getViewPromise(ca.case.mainEntity, wa.viewName ?? undefined);
 
     if (wa.viewNameProps.length) {
-      var props = wa.viewNameProps.toObject(a => a.element.name, a => !a.element.expression ? undefined : eval(a.element.expression));
+      var props = wa.viewNameProps.toObject(a => a.element.name, a => !a.element.expression ? undefined : (0, eval)(a.element.expression));
       viewPromise = viewPromise.withProps(props);
     }
 

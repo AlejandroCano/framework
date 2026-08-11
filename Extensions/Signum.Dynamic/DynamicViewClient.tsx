@@ -316,7 +316,7 @@ export namespace DynamicViewClient {
   }
   
   function evalWithScope(code: string, modules: any) {
-    return eval(code);
+    return (0, eval)(code);
   }
   
   interface DynamiViewOverridePair {
@@ -377,7 +377,7 @@ export namespace DynamicViewClient {
     code = "(function(vr){ " + code + "})";
   
     try {
-      return eval(code);
+      return (0, eval)(code);
     } catch (e) {
       throw new Error("Syntax in DynamicViewOverride for '" + getToString(dvo.entityType) + "':\n" + code + "\n" + (e as Error).message);
     }
