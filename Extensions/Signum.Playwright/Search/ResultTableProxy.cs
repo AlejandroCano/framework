@@ -222,11 +222,11 @@ public class ResultTableProxy
 
     // ---------------- CONTEXT MENU ----------------
 
-    public SearchContextMenu ContextMenu(int rowIndex, string columnToken = "Entity") =>
+    public SearchContextMenu ContextMenu(int rowIndex, string? columnToken = null) =>
         new SearchContextMenu(ContextMenuAsync_Private(rowIndex, columnToken), SearchControl);
-    async Task<ILocator> ContextMenuAsync_Private(int rowIndex, string columnToken)
+    async Task<ILocator> ContextMenuAsync_Private(int rowIndex, string? columnToken)
     {
-        var cell = await CellElementAsync(rowIndex, columnToken);
+        var cell = await (columnToken == null ? EntityLinkAsync(rowIndex) : CellElementAsync(rowIndex, columnToken) );
         await cell.WaitVisibleAsync();
         await cell.ScrollIntoViewIfNeededAsync();
         await cell.ClickAsync(new() { Button = MouseButton.Right });
