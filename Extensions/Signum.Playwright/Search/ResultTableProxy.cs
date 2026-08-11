@@ -104,7 +104,7 @@ public class ResultTableProxy
 
     public async Task<string[]> GetColumnTokensAsync()
     {
-        return await Element.Locator("thead > tr > th")
+        return await Element.Locator("thead > tr > th[data-column-index]")
             .EvaluateAllAsync<string[]>("els => els.map(el => el.getAttribute('data-column-name') ?? '')");
     }
 
