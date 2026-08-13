@@ -14,34 +14,24 @@ public class QueryTokenPartProxy
 
     public async Task SelectAsync(string? fullKey)
     {
-        var dropdownContainer = Element.Locator(".rw-popup-container");
-        var isVisible = await dropdownContainer.IsVisibleAsync();
-        if (!isVisible)
+        var plusButton = Element.Locator(".sf-query-token-plus");
+        if (await plusButton.IsVisibleAsync())
         {
-            // If the popup is still animating closed (rw-slide-transition-exiting), clicking to open
-            // mid-animation causes a conflicted state: the span items become unstable/invisible as
-            // the close animation wins, making ClickAsync fail for the full 20s timeout.
-            // Wait for the exiting animation to fully complete before clicking to open.
-            try
-            {
-                await Element.Locator(".rw-popup-container.rw-slide-transition-exiting")
-                             .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 2000 });
-            }
-            catch { /* not in exiting state or already done — safe to proceed */ }
-
-            await Element.Locator(".rw-dropdown-list, .sf-query-token-plus").ClickAsync();
-            await dropdownContainer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
-
-            // Also wait for the open animation (rw-slide-transition-entering) to finish.
-            // Items inside the popup are unstable/clipped during the slide-in and ClickAsync
-            // will fail with "element is not stable" → "element is not visible" if clicked too early.
-            try
-            {
-                await Element.Locator(".rw-popup-container.rw-slide-transition-entering")
-                             .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 2000 });
-            }
-            catch { /* animation already done — safe to proceed */ }
+            await plusButton.ClickAsync();
         }
+        else
+        {
+            var isAlreadyOpen = await Element.Locator(".rw-dropdown-list[aria-expanded='true']").CountAsync() > 0
+                || await Element.Locator(".rw-popup-container").IsVisibleAsync();
+
+            if (!isAlreadyOpen)
+            {
+                await Element.Locator(".rw-dropdown-list").ClickAsync();
+            }
+        }
+
+        var dropdownContainer = Element.Locator(".rw-popup-container");
+        await dropdownContainer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
 
         var tokenSelector = !string.IsNullOrEmpty(fullKey) ? $"[data-full-token='{fullKey}']" : ":not([0])";
         var optionElement = dropdownContainer.Locator($"div > span{tokenSelector}");
@@ -53,7 +43,7 @@ public class QueryTokenPartProxy
         }
         catch (Exception)
         {
-            await optionElement.ClickAsync(new() { Force = true });
+            await optionElement.DispatchEventAsync("click");
         }
 
         await Element.Locator($".rw-dropdown-list-value span{tokenSelector}")
