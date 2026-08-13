@@ -236,11 +236,11 @@ public class ResultTableProxy
         return menu;
     }
 
-    public SearchContextMenu ContextMenu(Lite<Entity> lite, string columnToken = "Entity", int? subRowIndex = null) =>
+    public SearchContextMenu ContextMenu(Lite<Entity> lite, string? columnToken = null, int? subRowIndex = null) =>
         new SearchContextMenu(ContextMenu_Private(lite, columnToken, subRowIndex), SearchControl);
-    async Task<ILocator> ContextMenu_Private(Lite<Entity> lite, string columnToken, int? subRowIndex)
+    async Task<ILocator> ContextMenu_Private(Lite<Entity> lite, string? columnToken, int? subRowIndex)
     {
-        var cell = await CellElementAsync(lite, columnToken, subRowIndex);
+        var cell = await (columnToken == null ? EntityLinkAsync(lite, subRowIndex) : CellElementAsync(lite, columnToken, subRowIndex));
         await cell.WaitVisibleAsync();
         await cell.ScrollIntoViewIfNeededAsync();
         await cell.ClickAsync(new() { Button = MouseButton.Right });
