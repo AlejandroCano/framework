@@ -149,6 +149,11 @@ export function wrapRequest(options: AjaxOptions, makeCall: () => Promise<Respon
     makeCall = () => NotifyPendingFilter.onPendingRequest(call);
   }
 
+  if (Options.globalFilter) {
+    let call = makeCall;
+    makeCall = () => Options.globalFilter!(call);
+  }
+
   const promise = makeCall();
 
   if (!(promise as any).__proto__)
@@ -156,6 +161,10 @@ export function wrapRequest(options: AjaxOptions, makeCall: () => Promise<Respon
 
   return promise;
 
+}
+
+export namespace Options {
+  export let globalFilter = undefined as((makeCall: () => Promise<Response>) => Promise<Response>) | undefined;
 }
 
 export namespace RetryFilter {
