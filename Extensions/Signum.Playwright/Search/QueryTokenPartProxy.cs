@@ -21,12 +21,12 @@ public class QueryTokenPartProxy
         }
         else
         {
-            var isAlreadyOpen = await Element.Locator(".rw-dropdown-list[aria-expanded='true']").CountAsync() > 0
+            var isAlreadyOpen = await Element.Locator(".rw-dropdown-list.rw-open").CountAsync() > 0
                 || await Element.Locator(".rw-popup-container").IsVisibleAsync();
 
             if (!isAlreadyOpen)
             {
-                await Element.Locator(".rw-dropdown-list").ClickAsync();
+                await Element.Locator(".rw-dropdown-list-input").ClickAsync();
             }
         }
 
