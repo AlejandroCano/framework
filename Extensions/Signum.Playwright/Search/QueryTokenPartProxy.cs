@@ -26,7 +26,7 @@ public class QueryTokenPartProxy
 
             if (!isAlreadyOpen)
             {
-                await Element.Locator(".rw-dropdown-list-input").ClickAsync();
+                await Element.Locator(".rw-dropdown-list-value").ClickAsync();
             }
         }
 
