@@ -34,7 +34,7 @@ public class QueryTokenPartProxy
         await dropdownContainer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
 
         var tokenSelector = !string.IsNullOrEmpty(fullKey) ? $"[data-full-token='{fullKey}']" : ":not([0])";
-        var optionElement = dropdownContainer.Locator($"div > span{tokenSelector}");
+        var optionElement = dropdownContainer.Locator($".rw-list-option:has(span{tokenSelector})");
         await optionElement.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
 
         await optionElement.ClickAsync(new() { Force = true });
