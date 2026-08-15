@@ -37,7 +37,7 @@ public class QueryTokenPartProxy
         var optionElement = dropdownContainer.Locator($"div > span{tokenSelector}");
         await optionElement.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
 
-        await optionElement.ClickAsync();
+        await optionElement.ClickAsync(new() { Force = true });
 
         await Element.Locator($".rw-dropdown-list-value span{tokenSelector}")
                      .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
