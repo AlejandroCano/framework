@@ -84,6 +84,22 @@ public class OperationController : ControllerBase
         return SignumServer.GetEntityPack(result);
     }
 
+    [HttpPost("api/operation/executeLiteSimple/{operationKey}"), ProfilerActionSplitter("operationKey")]
+    public ActionResult<string> ExecuteLiteSimple(string operationKey, [Required, FromBody] LiteOperationRequest request)
+    {
+        try
+        {
+            var entity = request.lite.Retrieve();
+            var op = request.GetOperationSymbol(operationKey, entity);
+            OperationLogic.ServiceExecute(entity, op, request.ParseArgs(op));
+            return Ok("ok");
+        }
+        catch (Exception ex)
+        {
+            return Ok(ex.Message);
+        }
+    }
+
     [HttpPost("api/operation/executeLiteWithProgress/{operationKey}"), ProfilerActionSplitter("operationKey")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ProgressStep<EntityPackTS>))]
     [Produces("application/x-ndjson")]
