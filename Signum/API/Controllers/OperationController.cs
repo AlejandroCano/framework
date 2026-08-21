@@ -45,6 +45,22 @@ public class OperationController : ControllerBase
         return result == null ? null : SignumServer.GetEntityPack(result);
     }
 
+    [HttpPost("api/operation/constructFromLiteSimple/{operationKey}"), ProfilerActionSplitter("operationKey")]
+    public ActionResult<object> ConstructFromLiteSimple(string operationKey, [Required, FromBody] LiteOperationRequest request)
+    {
+        try
+        {
+            var entity = request.lite.Retrieve();
+            var op = request.GetOperationSymbol(operationKey, entity);
+            var result = OperationLogic.ServiceConstructFrom(entity, op, request.ParseArgs(op));
+            return Ok(result == null ? null : result.ToLite());
+        }
+        catch (Exception ex)
+        {
+            return Ok(ex.Message);
+        }
+    }
+
     [HttpPost("api/operation/executeEntity/{operationKey}"), ProfilerActionSplitter("operationKey")]
     public ActionResult<EntityPackTS> ExecuteEntity(string operationKey, [Required, FromBody] EntityOperationRequest request)
     {
