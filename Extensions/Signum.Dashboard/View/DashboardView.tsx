@@ -310,7 +310,7 @@ export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
               <FontAwesomeIcon aria-hidden={true} icon="pen-to-square" className="me-1" />
             </LinkButton>
           }
-          {<LinkButton className="sf-pointer sf-hide" onClick={e => setIsOpen(!isOpen)} title={isOpen ? EntityControlMessage.Collapse.niceToString() : EntityControlMessage.Expand.niceToString()}>
+          {<LinkButton className="sf-pointer sf-hide" onClick={e => { part.defaultOpen = !isOpen; setIsOpen(!isOpen); }} title={isOpen ? EntityControlMessage.Collapse.niceToString() : EntityControlMessage.Expand.niceToString()}>
             <FontAwesomeIcon aria-hidden={true} icon={isOpen ? "chevron-up" : "chevron-down"} />
           </LinkButton>}
         </div>

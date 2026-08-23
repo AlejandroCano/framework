@@ -48,6 +48,11 @@ export class DashboardController {
     this.invalidationMap.set(embedded, invalidation);
   }
 
+  tryRemoveInvalidations(embedded: PanelPartEmbedded): void {
+    if (this.invalidationMap.has(embedded))
+      this.invalidationMap.delete(embedded);
+  }
+
   invalidate(source: PanelPartEmbedded, interactionGroup: InteractionGroup | null | undefined): void {
     Array.from(this.invalidationMap.keys())
       .filter(p => p != source && (interactionGroup == null || p.interactionGroup == interactionGroup))
