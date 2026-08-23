@@ -40,6 +40,7 @@ export class DashboardController {
   setIsLoading(): void {
     this.isLoading = !this.dashboard.parts
       .filter(p => p.element.content.Type && DashboardClient.hasWaitForInvalidation(p.element.content.Type))
+      .filter(p => p.element.defaultOpen != false)
       .every(p => this.invalidationMap.has(p.element));
   }
 

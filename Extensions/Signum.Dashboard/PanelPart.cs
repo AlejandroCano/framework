@@ -48,6 +48,8 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
     [Format(FormatAttribute.Color)]
     public string? CustomColor { get; set; }
 
+    public bool? DefaultOpen { get; set; }
+
     [BindParent]
     [ImplementedBy(
         typeof(ToolbarMenuPartEntity),

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Link } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes, getContrastingTextColorWCAG } from '@framework/Globals'
-import { Entity, getToString, toLite, translated } from '@framework/Signum.Entities'
+import { Entity, getToString, toLite, translated, EntityControlMessage } from '@framework/Signum.Entities'
 import { TypeContext, mlistItemContext } from '@framework/TypeContext'
 import { DashboardClient, PanelPartContentProps } from '../DashboardClient'
 import { DashboardEntity, PanelPartEmbedded, IPartEntity, DashboardMessage } from '../Signum.Dashboard'
@@ -207,7 +207,7 @@ export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
   const content = p.ctx.value.content;
 
   const customDataRef = React.useRef<any>(undefined);
-
+  const [isOpen, setIsOpen] = React.useState<boolean>(p.ctx.value.defaultOpen ?? true);
   const state = useAPI(signal => DashboardClient.partRenderers[content.Type].component().then(c => ({ component: c, lastType: content.Type })),
     [content.Type], { avoidReset: true });
 
@@ -284,11 +284,10 @@ export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
   }
 
   const cardContent = (
-    <div className={classes("card", !part.customColor && "border-tertiary", "shadow-sm", "mb-4")} style={{ flex: p.flex ? 1 : undefined,/* overflow: "hidden"*/ }}>
+    <div className={classes("card", !part.customColor && "border-tertiary", "shadow-sm", "mb-4")} style={{ flex: (p.flex && isOpen) ? 1 : undefined,/* overflow: "hidden"*/ }}>
       <div className={classes("card-header fw-bold", "sf-show-hover", "d-flex", !part.customColor)}
         style={{ backgroundColor: part.customColor ?? undefined, color: part.customColor ? getContrastingTextColorWCAG(part.customColor) : undefined }}
       >
-
         {renderer.handleTitleClick == undefined ? title :
           <LinkButton title={undefined} className="sf-pointer"
             style={{ color: part.titleColor ?? (part.customColor ? getContrastingTextColorWCAG(part.customColor) : undefined), textDecoration: "none" }}
@@ -311,23 +310,27 @@ export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
               <FontAwesomeIcon aria-hidden={true} icon="pen-to-square" className="me-1" />
             </LinkButton>
           }
+          {<LinkButton className="sf-pointer sf-hide" onClick={e => setIsOpen(!isOpen)} title={isOpen ? EntityControlMessage.Collapse.niceToString() : EntityControlMessage.Expand.niceToString()}>
+            <FontAwesomeIcon aria-hidden={true} icon={isOpen ? "chevron-up" : "chevron-down"} />
+          </LinkButton>}
         </div>
       </div>
-      <div data-part-content={partContentKey} className="card-body py-2 px-3 d-flex flex-column">
-        <ErrorBoundary>
-          {
-            React.createElement(state.component, {
-              partEmbedded: part,
-              content: content,
-              entity: lite,
-              deps: p.deps,
-              dashboardController: p.dashboardController,
-              cachedQueries: p.cachedQueries,
-              customDataRef: customDataRef,
-            } as PanelPartContentProps<IPartEntity>)
-          }
-        </ErrorBoundary>
-      </div>
+      {isOpen &&
+        <div data-part-content={partContentKey} className="card-body py-2 px-3 d-flex flex-column">
+          <ErrorBoundary>
+            {
+              React.createElement(state.component, {
+                partEmbedded: part,
+                content: content,
+                entity: lite,
+                deps: p.deps,
+                dashboardController: p.dashboardController,
+                cachedQueries: p.cachedQueries,
+                customDataRef: customDataRef,
+              } as PanelPartContentProps<IPartEntity>)
+            }
+          </ErrorBoundary>
+        </div>}
     </div>
   );
 
