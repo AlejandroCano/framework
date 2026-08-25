@@ -204,17 +204,16 @@ export interface PanelPartProps {
 }
 
 export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
-  const content = p.ctx.value.content;
+  const part = p.ctx.value;
+  const content = part.content;
 
   const customDataRef = React.useRef<any>(undefined);
-  const [isOpen, setIsOpen] = React.useState<boolean>(p.ctx.value.defaultOpen ?? true);
+  const [isOpen, setIsOpen] = React.useState<boolean>(() => { const o = part.defaultOpen ?? true; part.isOpen = o; return o; });
   const state = useAPI(signal => DashboardClient.partRenderers[content.Type].component().then(c => ({ component: c, lastType: content.Type })),
     [content.Type], { avoidReset: true });
 
   if (state == null || state.lastType == null)
     return null;
-
-  const part = p.ctx.value;
 
   const renderer = DashboardClient.partRenderers[content.Type];
 
@@ -310,7 +309,7 @@ export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
               <FontAwesomeIcon aria-hidden={true} icon="pen-to-square" className="me-1" />
             </LinkButton>
           }
-          {<LinkButton className="sf-pointer sf-hide" onClick={e => { part.defaultOpen = !isOpen; setIsOpen(!isOpen); }} title={isOpen ? EntityControlMessage.Collapse.niceToString() : EntityControlMessage.Expand.niceToString()}>
+          {<LinkButton className="sf-pointer sf-hide" onClick={e => { part.isOpen = !isOpen; setIsOpen(!isOpen); }} title={isOpen ? EntityControlMessage.Collapse.niceToString() : EntityControlMessage.Expand.niceToString()}>
             <FontAwesomeIcon aria-hidden={true} icon={isOpen ? "chevron-up" : "chevron-down"} />
           </LinkButton>}
         </div>

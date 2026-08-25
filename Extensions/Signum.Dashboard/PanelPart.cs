@@ -50,6 +50,9 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
 
     public bool? DefaultOpen { get; set; }
 
+    [Ignore]
+    public bool IsOpen { get; set; } /* Only for client-side */
+
     [BindParent]
     [ImplementedBy(
         typeof(ToolbarMenuPartEntity),

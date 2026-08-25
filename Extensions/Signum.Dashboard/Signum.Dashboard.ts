@@ -189,6 +189,7 @@ export interface PanelPartEmbedded extends Entities.EmbeddedEntity {
   interactionGroup: InteractionGroup | null;
   customColor: string | null;
   defaultOpen: boolean | null;
+  isOpen: boolean;
   content: IPartEntity;
 }
 
