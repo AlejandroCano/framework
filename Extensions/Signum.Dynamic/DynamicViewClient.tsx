@@ -316,7 +316,7 @@ export namespace DynamicViewClient {
   }
   
   function evalWithScope(code: string, modules: any) {
-    return (0, eval)(code);
+    return new Function("modules", "return (" + code + ");")(modules);
   }
   
   interface DynamiViewOverridePair {
@@ -373,11 +373,22 @@ export namespace DynamicViewClient {
   
   
     var modules = globalModules;
-  
-    code = "(function(vr){ " + code + "})";
-  
+
+    const funcBody = "return (function(vr){ " + code + "});";
+
     try {
-      return (0, eval)(code);
+      return new Function(
+        "AutoLine", "EntityLine", "EntityCombo", "EnumCheckboxList", "EntityCheckboxList", "EntityDetail", "EntityList", "EntityRepeater", "EntityTabRepeater", "EntityStrip", "EntityTable", "FormGroup", "FormControlReadonly", "FileLine",
+        "SearchControl", "SearchControlLoaded", "SearchValue", "SearchValueLine",
+        "Button", "Dropdown", "DropdownItem", "Modal", "NavItem", "Tooltip", "Overlay", "OverlayTrigger", "Tab", "Tabs", "LinkContainer",
+        "modules",
+        funcBody
+      )(
+        AutoLine, EntityLine, EntityCombo, EnumCheckboxList, EntityCheckboxList, EntityDetail, EntityList, EntityRepeater, EntityTabRepeater, EntityStrip, EntityTable, FormGroup, FormControlReadonly, FileLine,
+        SearchControl, SearchControlLoaded, SearchValue, SearchValueLine,
+        Button, Dropdown, DropdownItem, Modal, NavItem, Tooltip, Overlay, OverlayTrigger, Tab, Tabs, LinkContainer,
+        modules
+      );
     } catch (e) {
       throw new Error("Syntax in DynamicViewOverride for '" + getToString(dvo.entityType) + "':\n" + code + "\n" + (e as Error).message);
     }
