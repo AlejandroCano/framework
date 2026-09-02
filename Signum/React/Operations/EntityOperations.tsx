@@ -26,7 +26,7 @@ export namespace EntityOperations {
     const operations = Operations.operationInfos(ti)
       .filter(oi => Operations.isEntityOperation(oi.operationType) && (oi.canBeNew || !ctx.pack.entity.isNew))
       .filter(oi => ctx.pack.entity.isNew || oi.key in ctx.pack.canExecute)
-      .filter(oi => !ctx.filter || oi.niceName.toLowerCase().includes(ctx.filter.toLowerCase()))
+      .filter(oi => !ctx.filter || ctx.filter.split("~").some(f => oi.niceName.toLowerCase().includes(f.toLowerCase())))
       .filter(oi => !ctx.operations || ctx.operations.split("~").some(opt => oi.key.toLowerCase().endsWith(`.${opt.toLowerCase()}`)))
       .map(oi => {
 

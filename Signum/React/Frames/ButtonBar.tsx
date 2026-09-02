@@ -18,10 +18,31 @@ export interface ButtonBarHandle {
 
 export function ButtonBar(p: ButtonBarProps): React.JSX.Element {
 
-  const [currentFilter, setCurrentFilter] = React.useState<string | undefined>(p.filter);
-  const [text, setText] = React.useState<string | undefined>();
+  const qualifiedOperations = React.useMemo(() => {
+    if (!p.operations)
+      return undefined;
 
-  const ctx: ButtonsContext = { filter: currentFilter, ...p };
+    const currents = Dic.getKeys(p.pack.canExecute);
+    const qos = p.operations.split("~").filter(o => currents.some(c => c.toLowerCase().endsWith(`.${o.toLowerCase()}`)));
+    if (qos.length == 0)
+      return undefined;
+
+    return qos.join("~");
+  }, [p.operations]);
+
+  const [currentFilter, setCurrentFilter] = React.useState<string | undefined>(() => {
+    if (qualifiedOperations)
+      return undefined;
+
+    if (p.operations)
+      return p.operations;
+
+    return p.filter;
+  });
+
+  const [text, setText] = React.useState<string | undefined>(currentFilter);
+
+  const ctx: ButtonsContext = { ...p, operations: qualifiedOperations, filter: currentFilter };
   const rb = FunctionalAdapter.innerRef(ctx.frame.entityComponent) as IRenderButtons | null;
 
   const es = Navigator.getSettings(p.pack.entity.Type);
@@ -52,7 +73,7 @@ export function ButtonBar(p: ButtonBarProps): React.JSX.Element {
 
   return (
     <div className={classes("btn-toolbar", "sf-button-bar", p.align == "right" ? "justify-content-end" : undefined)}>
-      {!p.operations && ButtonBarManager.showSearch(p.pack.entity.Type, Dic.getKeys(p.pack.canExecute)) && renderSearch()}
+      {!qualifiedOperations && ButtonBarManager.showSearch(p.pack.entity.Type, Dic.getKeys(p.pack.canExecute)) && renderSearch()}
       {buttons.map(a => a!.button)}
     </div>
   );
