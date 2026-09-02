@@ -163,9 +163,9 @@ export function wrapRequest(options: AjaxOptions, makeCall: () => Promise<Respon
 
 }
 
-export namespace Options {
-  export let globalFilter = undefined as((makeCall: () => Promise<Response>) => Promise<Response>) | undefined;
-}
+export const Options = {
+  globalFilter: undefined as ((makeCall: () => Promise<Response>) => Promise<Response>) | undefined,
+};
 
 export namespace RetryFilter {
   export function retryFilter(makeCall: () => Promise<Response>): Promise<Response> {
