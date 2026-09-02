@@ -514,8 +514,8 @@ export function evalWithScope(code: string, modules: any, props: any, locals: an
   // Lines
   var AutoLine = Lines.AutoLine;
 
-  return new Function("modules", "props", "locals", "AutoLine", "return (" + code + ");")
-    .call(this, modules, props, locals, AutoLine);
+  var func = new Function("modules", "props", "locals", "AutoLine", "return (" + code + ");");
+  return func(modules, props, locals, AutoLine);
 }
 
 export function asFieldFunction(field: string): (e: ModifiableEntity) => any {
