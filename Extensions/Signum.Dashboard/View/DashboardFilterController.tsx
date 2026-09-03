@@ -40,11 +40,17 @@ export class DashboardController {
   setIsLoading(): void {
     this.isLoading = !this.dashboard.parts
       .filter(p => p.element.content.Type && DashboardClient.hasWaitForInvalidation(p.element.content.Type))
+      .filter(p => p.element.isOpen)
       .every(p => this.invalidationMap.has(p.element));
   }
 
   registerInvalidations(embedded: PanelPartEmbedded, invalidation: () => void): void {
     this.invalidationMap.set(embedded, invalidation);
+  }
+
+  tryRemoveInvalidations(embedded: PanelPartEmbedded): void {
+    if (this.invalidationMap.has(embedded))
+      this.invalidationMap.delete(embedded);
   }
 
   invalidate(source: PanelPartEmbedded, interactionGroup: InteractionGroup | null | undefined): void {
