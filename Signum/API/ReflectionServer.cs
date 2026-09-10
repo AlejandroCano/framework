@@ -63,7 +63,14 @@ public static class ReflectionServer
         if (overrideRegistration)
             OverrideIsNamespaceAllowed[exampleType.Namespace!] = allowed;
         else
-            OverrideIsNamespaceAllowed.Add(exampleType.Namespace!, allowed);
+        {
+            //Avoid ArgumentException when the same namespace is registered more than once
+            //(e.g. multiple applications sharing the same process/AppDomain and static state).
+            if (!OverrideIsNamespaceAllowed.ContainsKey(exampleType.Namespace!))
+                OverrideIsNamespaceAllowed.Add(exampleType.Namespace!, allowed);
+            else
+                System.Diagnostics.Debug.WriteLine($"Namespace {exampleType.Namespace!} is already registered.");
+        }
     }
 
     internal static void Start()
