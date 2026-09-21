@@ -2,6 +2,7 @@ import { DashboardEntity, InteractionGroup, PanelPartEmbedded } from '../Signum.
 import {
   FilterConditionOptionParsed, FilterGroupOptionParsed, FilterOption,
   FilterOptionParsed, FindOptions, isActive, isFilterGroup,
+  QueryDescription,
 } from '@framework/FindOptions';
 import { FilterGroupOperation } from '@framework/Signum.DynamicQuery';
 import { Entity, is, Lite } from '@framework/Signum.Entities';
@@ -39,11 +40,17 @@ export class DashboardController {
   setIsLoading(): void {
     this.isLoading = !this.dashboard.parts
       .filter(p => p.element.content.Type && DashboardClient.hasWaitForInvalidation(p.element.content.Type))
+      .filter(p => p.element.isOpen)
       .every(p => this.invalidationMap.has(p.element));
   }
 
   registerInvalidations(embedded: PanelPartEmbedded, invalidation: () => void): void {
     this.invalidationMap.set(embedded, invalidation);
+  }
+
+  tryRemoveInvalidations(embedded: PanelPartEmbedded): void {
+    if (this.invalidationMap.has(embedded))
+      this.invalidationMap.delete(embedded);
   }
 
   invalidate(source: PanelPartEmbedded, interactionGroup: InteractionGroup | null | undefined): void {
@@ -71,7 +78,7 @@ export class DashboardController {
     this.lastChange.set(filter.queryKey, new Date().getTime());
     this.pinnedFilters.set(filter.partEmbedded, filter);
     this.forceUpdate();
-  }       
+  }
 
   clearPinnesFilter(partEmbedded: PanelPartEmbedded): void {
     var current = this.pinnedFilters.get(partEmbedded);
@@ -111,7 +118,7 @@ export class DashboardController {
 
     var resultFilters = otherFilters.map(
       df => {
-        
+
         var tokenEquivalences = equivalences[df.queryKey]?.groupToObject(a => a.fromToken!.fullKey);
 
         if (df.queryKey != queryKey && tokenEquivalences == undefined)
@@ -142,7 +149,7 @@ export class DashboardController {
     return [...resultPinnedFilters, ...resultFilters];
   }
 
- 
+
 
   applyToFindOptions(partEmbedded: PanelPartEmbedded, fo: FindOptions): FindOptions {
 
@@ -240,14 +247,16 @@ interface TokenEquivalenceTuple {
 }
 
 export class DashboardPinnedFilters {
-  partEmbedded: PanelPartEmbedded; 
+  partEmbedded: PanelPartEmbedded;
   queryKey: string;
+  queryDescription: QueryDescription;
   pinnedFilters: FilterOptionParsed[];
 
-  constructor(partEmbedded: PanelPartEmbedded, queryKey: string, pinnedFilters: FilterOptionParsed[]) {
+  constructor(partEmbedded: PanelPartEmbedded, queryKey: string, queryDescription: QueryDescription, pinnedFilters: FilterOptionParsed[]) {
     this.partEmbedded = partEmbedded;
     this.queryKey = queryKey;
     this.pinnedFilters = pinnedFilters;
+    this.queryDescription = queryDescription;
   }
 }
 

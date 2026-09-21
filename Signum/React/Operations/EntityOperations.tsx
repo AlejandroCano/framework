@@ -7,12 +7,16 @@ import { Navigator } from '../Navigator';
 import MessageModal from '../Modals/MessageModal'
 import { ValidationError } from '../Services';
 import { Operations, EntityOperationSettings, EntityOperationContext, EntityOperationGroup, AlternativeOperationSetting } from '../Operations'
+import { ServiceError } from '../Services'
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { IconProp } from "@fortawesome/fontawesome-svg-core";
 import { Dropdown, ButtonProps, DropdownButton, Button, OverlayTrigger, Tooltip, ButtonGroup } from "react-bootstrap";
 import { BsColor } from "../Components";
 
 export namespace EntityOperations {
+  export const Options = {
+    onDeleteError: undefined as ((eoc: EntityOperationContext<any>, e: ServiceError) => Promise<boolean>) | undefined
+  };
   export function getEntityOperationButtons(ctx: ButtonsContext): Array<ButtonBarElement | undefined> | undefined {
     const ti = tryGetTypeInfo(ctx.pack.entity.Type);
 
@@ -22,6 +26,8 @@ export namespace EntityOperations {
     const operations = Operations.operationInfos(ti)
       .filter(oi => Operations.isEntityOperation(oi.operationType) && (oi.canBeNew || !ctx.pack.entity.isNew))
       .filter(oi => ctx.pack.entity.isNew || oi.key in ctx.pack.canExecute)
+      .filter(oi => !ctx.filter || ctx.filter.split("~").some(f => oi.niceName.toLowerCase().includes(f.toLowerCase())))
+      .filter(oi => !ctx.operations || ctx.operations.split("~").some(opt => oi.key.toLowerCase().endsWith(`.${opt.toLowerCase()}`)))
       .map(oi => {
 
         const eos = Operations.getSettings(oi.key) as EntityOperationSettings<Entity>;
@@ -36,6 +42,9 @@ export namespace EntityOperations {
       .filter(eoc => eoc.isVisibleInButtonBar(ctx));
 
     operations.forEach(eoc => eoc.complete());
+
+    if (ctx.filter || ctx.operations)
+      return operations.flatMap((eoc, j) => eoc.createButton()); 
 
     const groups = operations.groupBy(eoc => eoc.group && eoc.group.key || "");
 
@@ -205,7 +214,11 @@ export namespace EntityOperations {
 
       return Operations.API.deleteEntity(eoc.entity, eoc.operationInfo.key, ...args)
         .then(eoc.onDeleteSuccess ?? eoc.onDeleteSuccess_Default)
-        .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")));
+        .catch(async e => {
+          if (e instanceof ValidationError) { eoc.frame.setError(e.modelState, "entity"); return; }
+          if (Options.onDeleteError) { const handled = await Options.onDeleteError!(eoc, e); if (handled) return; }
+          throw e;
+        });
     });
   }
 
@@ -217,7 +230,11 @@ export namespace EntityOperations {
 
       return Operations.API.deleteLite(toLite(eoc.entity), eoc.operationInfo.key, ...args)
         .then(eoc.onDeleteSuccess ?? eoc.onDeleteSuccess_Default)
-        .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")));
+        .catch(async e => {
+          if (e instanceof ValidationError) { eoc.frame.setError(e.modelState, "entity"); return; }
+          if (Options.onDeleteError) { const handled = await Options.onDeleteError!(eoc, e); if (handled) return; }
+          throw e;
+        });
     });
   }
 

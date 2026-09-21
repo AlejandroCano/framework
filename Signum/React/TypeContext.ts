@@ -118,7 +118,7 @@ export class StyleContext {
     switch (this.formSize) {
       case "xs": return "form-control form-control-xs";
       case "sm": return "form-control form-control-sm";
-      case "md": return "form-control";
+      case "md": return "form-control form-control-md";
       case "lg": return "form-control form-control-lg";
       default: throw new Error("Unexpected formSize " + this.formSize);
     }
@@ -138,7 +138,7 @@ export class StyleContext {
     switch (this.formSize) {
       case "xs": return "form-control-plaintext form-control-xs";
       case "sm": return "form-control-plaintext form-control-sm";
-      case "md": return "form-control-plaintext";
+      case "md": return "form-control-plaintext form-control-md";
       case "lg": return "form-control-plaintext form-control-lg";
       default: throw new Error("Unexpected formSize " + this.formSize);
     }
@@ -472,6 +472,8 @@ export interface ButtonsContext {
   frame: EntityFrame<ModifiableEntity>;
   isOperationVisible?: (eoc: EntityOperationContext<any /*Entity*/>) => boolean;
   tag?: string;
+  operations?: string;
+  filter?: string;
 }
 
 export interface ButtonBarElement {

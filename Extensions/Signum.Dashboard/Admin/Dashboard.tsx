@@ -98,6 +98,7 @@ export default function Dashboard(p: { ctx: TypeContext<DashboardEntity> }): Rea
         tc.value.customColor = result.customColor;
         tc.value.interactionGroup = result.interactionGroup;
         tc.value.tooltip = result.tooltip;
+        tc.value.defaultOpen = result.defaultOpen;
         tc.value.modified = true;
         forceUpdate();
       }
@@ -168,7 +169,10 @@ export default function Dashboard(p: { ctx: TypeContext<DashboardEntity> }): Rea
         <div className="row">
           <div className="col-sm-8">
             <EntityLine ctx={ctx.subCtx(cp => cp.entityType)} onChange={handleEntityTypeChange} labelColumns={3}
-              helpText={ctx.value.entityType && <CheckboxLine ctx={ctx.subCtx(e => e.hideQuickLink)} inlineCheckbox />}
+              helpText={ctx.value.entityType && <div className="d-flex gap-3">
+                <CheckboxLine ctx={ctx.subCtx(e => e.hideQuickLink)} inlineCheckbox />
+                <CheckboxLine ctx={ctx.subCtx(e => e.showTitleAsBreadcrumb)} inlineCheckbox />
+              </div>}
             />
           </div>
           {ctx.value.entityType && <div className="col-sm-4">

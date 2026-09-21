@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Components;
 using Signum.Playwright.Frames;
 using Signum.Playwright.ModalProxies;
 using Signum.Playwright.Search;
@@ -187,8 +186,7 @@ public abstract class EntityBaseProxy : BaseLineProxy
     {
         await input.ClickAsync();
         await input.ClearAsync();
-        //await input.PressSequentiallyAsync("id:" + lite.Id.ToString(), new() { Delay = 50 });
-        await input.TypeAsync("id:" + lite.Id.ToString());
+        await input.PressSequentiallyAsync("id:" + lite.Id.ToString(), new() { Delay = 25 });
 
         var list = container.Locator(".typeahead.dropdown-menu");
         await list.WaitForAsync(new() { State = WaitForSelectorState.Visible });
@@ -201,8 +199,7 @@ public abstract class EntityBaseProxy : BaseLineProxy
     {
         await input.ClickAsync();
         await input.ClearAsync();
-        //await input.PressSequentiallyAsync(beginning, new() { Delay = 50 });
-        await input.TypeAsync(beginning);
+        await input.PressSequentiallyAsync(beginning, new() { Delay = 25 });
 
         var list = container.Locator(".typeahead.dropdown-menu");
         await list.WaitForAsync(new() { State = WaitForSelectorState.Visible });

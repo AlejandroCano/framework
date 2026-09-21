@@ -62,7 +62,7 @@ export default function FramePage(): React.ReactElement {
   function setPack(pack: EntityPack<Entity>, view: { viewName?: string, getComponent: (ctx: TypeContext<Entity>) => React.ReactElement }, createNew?: () => Promise<EntityPack<Entity> | undefined>) {
     return setState({
       pack,
-      lastEntity: JSON.stringify(pack.entity),
+      lastEntity: pack == state?.pack ? state?.lastEntity : JSON.stringify(pack.entity),
       getComponent: view.getComponent,
       viewName: view.viewName,
       createNew: createNew,
@@ -340,7 +340,7 @@ export default function FramePage(): React.ReactElement {
       {renderTitle()}
       <div style={state.executing == true ? { opacity: ".7" } : undefined}>
         <div className="sf-button-widget-container">
-          {entityComponent.current && <ButtonBar ref={buttonBar} frame={frame} pack={state.pack} />}
+          {entityComponent.current && <ButtonBar ref={buttonBar} frame={frame} pack={state.pack} operations={QueryString.parse(location.search)["operations"]} />}
         </div>
         <ValidationErrors ref={validationErrors} entity={state.pack.entity} prefix="framePage" />
         <WidgetEmbedded widgetContext={wc} >

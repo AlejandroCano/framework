@@ -1,6 +1,4 @@
-using Microsoft.Playwright;
-using System.Diagnostics;
-
+using System.Text.RegularExpressions;
 namespace Signum.Playwright;
 
 /// <summary>
@@ -47,16 +45,30 @@ public static class PlaywrightExtensions
 
     #endregion
 
+    #region Focus and Input
+
+    /// <summary>
+    /// Simulates losing focus by pressing the Tab key, mimicking Selenium's LoseFocus behavior.
+    /// This is crucial for triggering onBlur events in React components like DateTimeLine.
+    /// </summary>
+    public static async Task LoseFocusAsync(this ILocator locator)
+    {
+        await locator.PressAsync("Tab");
+    }
+
+    #endregion
+
     #region Wait Methods
 
     /// <summary>
     /// Wait for locator to be present (attached to DOM)
     /// </summary>
-    public static async Task<ILocator> WaitPresentAsync(this ILocator locator, float? timeout = null)
+    public static async Task<ILocator> WaitPresentAsync(this ILocator locator, float? timeoutMs = null)
     {
         await locator.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Attached,
+            Timeout = timeoutMs,
         });
         return locator;
     }
@@ -64,11 +76,12 @@ public static class PlaywrightExtensions
     /// <summary>
     /// Wait for locator to be visible
     /// </summary>
-    public static async Task<ILocator> WaitVisibleAsync(this ILocator locator, float? timeout = null, bool scrollTo = false)
+    public static async Task<ILocator> WaitVisibleAsync(this ILocator locator, float? timeoutMs = null, bool scrollTo = false)
     {
         await locator.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Visible,
+            Timeout = timeoutMs,
         });
 
         if (scrollTo)
@@ -82,22 +95,24 @@ public static class PlaywrightExtensions
     /// <summary>
     /// Wait for locator to not be present (detached from DOM)
     /// </summary>
-    public static async Task WaitNotPresentAsync(this ILocator locator, float? timeout = null)
+    public static async Task WaitNotPresentAsync(this ILocator locator, float? timeoutMs = null)
     {
         await locator.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Detached,
+            Timeout = timeoutMs,
         });
     }
 
     /// <summary>
     /// Wait for locator to not be visible
     /// </summary>
-    public static async Task WaitNotVisibleAsync(this ILocator locator, float? timeout = null)
+    public static async Task WaitNotVisibleAsync(this ILocator locator, float? timeoutMs = null)
     {
         await locator.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Hidden,
+            Timeout = timeoutMs,
         });
     }
 
@@ -245,7 +260,7 @@ public static class PlaywrightExtensions
         return classes.Contains(className);
     }
 
-    public static async Task WaitHasClassAsync(this ILocator locator, string className, bool shouldHave)
+    public static async Task WaitHasClassAsync(this ILocator locator, string className, bool shouldHave, float? timeoutMs = null)
     {
         await locator.Page.WaitForFunctionAsync(
             @"([el, cls, shouldHave]) => {
@@ -253,36 +268,47 @@ public static class PlaywrightExtensions
                 const hasClass = el.classList.contains(cls);
                 return shouldHave == hasClass;
             }",
-            new object[]{ await locator.ElementHandleAsync(), className, shouldHave }
+            new object[]{ await locator.ElementHandleAsync(), className, shouldHave },
+            new PageWaitForFunctionOptions { Timeout = timeoutMs }
         );
     }
 
-    public static async Task WaitAttributeAsync(this ILocator locator, string attributeName, string? expectedValue, string op = "===")
+    public static async Task WaitHasClassAsync(this ILocator locator, Regex classRegex, bool shouldHave)
+    {
+        if (shouldHave)
+            await Assertions.Expect(locator).ToHaveClassAsync(classRegex);
+        else
+            await Assertions.Expect(locator).Not.ToHaveClassAsync(classRegex);
+    }
+
+    public static async Task WaitAttributeAsync(this ILocator locator, string attributeName, string? expectedValue, string op = "===", float? timeoutMs = null)
     {
         var elementHandle = await locator.ElementHandleAsync();
 
         await locator.Page.WaitForFunctionAsync(
             $@"([el, attr, value]) => el.getAttribute(attr) {op} value",
-            new object?[] { elementHandle, attributeName, expectedValue }
+            new object?[] { elementHandle, attributeName, expectedValue },
+            new PageWaitForFunctionOptions() { Timeout = timeoutMs}
         );
     }
 
-    public static async Task WaitContentAsync(this ILocator locator, string? expectedContent, string op = "===")
+    public static async Task WaitContentAsync(this ILocator locator, string? expectedContent, string op = "===", float? timeoutMs = null)
     {
         var elementHandle = await locator.ElementHandleAsync();
 
         await locator.Page.WaitForFunctionAsync(
             $@"([el, content]) => el.innerText {op} content",
-            new object?[] { elementHandle, expectedContent }
+            new object?[] { elementHandle, expectedContent },
+            new PageWaitForFunctionOptions() { Timeout = timeoutMs}
         );
     }
 
-    public static async Task WaitDisabledAsync(this ILocator locator, bool shouldBeDisabled)
+    public static async Task WaitDisabledAsync(this ILocator locator, bool shouldBeDisabled, float? timeoutMs = null)
     {
         if (shouldBeDisabled)
-            await Assertions.Expect(locator).ToBeDisabledAsync();
+            await Assertions.Expect(locator).ToBeDisabledAsync(timeoutMs == null ? null : new LocatorAssertionsToBeDisabledOptions { Timeout = timeoutMs });
         else
-            await Assertions.Expect(locator).ToBeEnabledAsync();
+            await Assertions.Expect(locator).ToBeEnabledAsync(timeoutMs == null ? null : new LocatorAssertionsToBeEnabledOptions { Timeout = timeoutMs });
     }
 
     /// <summary>
@@ -320,7 +346,7 @@ public static class PlaywrightExtensions
     /// Strips the "Locator@" prefix, removes Playwright-specific "nth=N" parts,
     /// and replaces " >> " descendant separators with a space.
     /// </summary>
-    public static string ToCssSelector_QueryAll(this ILocator locator) => $"document.querySelectorAll(\"{locator.ToCssSelector()}\")"; 
+    public static string ToCssSelector_QueryAll(this ILocator locator) => $"document.querySelectorAll(\"{locator.ToCssSelector()}\")";
     public static string ToCssSelector(this ILocator locator)
     {
         var selector = locator.ToString()!.After('@');
@@ -407,7 +433,7 @@ public static class PlaywrightExtensions
     /// </summary>
     public static async Task<ILocator> CaptureOnClickAsync(this ILocator button)
     {
-        return await button.Page.CaptureModalAsync(()=> button.ClickAsync());
+        return await button.Page.CaptureModalAsync(() => button.ClickAsync());
     }
 
     public static async Task MoveMouseAsync(this ILocator button, float xRatio = .5f, float yRatio = .5f)
@@ -420,7 +446,7 @@ public static class PlaywrightExtensions
 
     public static async Task<ILocator> CaptureOnDoubleClickAsync(this ILocator button)
     {
-        return await button.Page.CaptureModalAsync(()=> button.DoubleClickAsync());
+        return await button.Page.CaptureModalAsync(() => button.DoubleClickAsync());
     }
 
     #endregion
@@ -473,4 +499,13 @@ public static class PlaywrightExtensions
 
     #endregion
 
+}
+
+public static partial class ClassRegexes
+{
+    [GeneratedRegex(@"\bselected\b")]
+    public static partial Regex Selected();
+
+    [GeneratedRegex(@"\bdisabled\b")]
+    public static partial Regex Disabled();
 }

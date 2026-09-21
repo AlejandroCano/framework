@@ -30,6 +30,18 @@ public static class DashboardLogic
     public static IQueryable<CachedQueryEntity> CachedQueries(this DashboardEntity db) =>
         As.Expression(() => Database.Query<CachedQueryEntity>().Where(a => a.Dashboard.Is(db)));
 
+
+    [AutoExpressionField]
+    public static bool InToolbar(this DashboardEntity uq) =>
+        As.Expression(() =>
+            Database.Query<ToolbarEntity>().Any(t => t.Elements.Any(e => e.Content.Is(uq))) ||
+            Database.Query<ToolbarMenuEntity>().Any(t => t.Elements.Any(e => e.Content.Is(uq)))
+        );
+
+    [AutoExpressionField]
+    public static DashboardEntity? Dashboard(this IPartEntity part) =>
+        As.Expression(() => Database.Query<DashboardEntity>().FirstOrDefault(d => d.ContainsContent(part)));
+
     public static void Start(SchemaBuilder sb, IFileTypeAlgorithm? cachedQueryAlgorithm)
     {
         if (sb.AlreadyDefined(MethodInfo.GetCurrentMethod()))
@@ -63,6 +75,7 @@ public static class DashboardLogic
         });
 
         sb.Include<DashboardEntity>()
+            .WithCascadeDeleteMListBy(a => a.Parts, p => p.Content)
             .WithLiteModel(d => new DashboardLiteModel { DisplayName = d.DisplayName, HideQuickLink = d.HideQuickLink })
             .WithVirtualMList(a => a.TokenEquivalencesGroups, e => e.Dashboard)
             .WithQuery(() => cp => new
@@ -74,6 +87,8 @@ public static class DashboardLogic
                 cp.Owner,
                 cp.DashboardPriority,
             });
+
+        QueryLogic.Expressions.Register((IPartEntity p) => p.Dashboard(), () => typeof(DashboardEntity).NiceName());
 
         sb.Schema.EntityEvents<DashboardEntity>().Retrieved += DashboardLogic_Retrieved;
 
@@ -90,6 +105,9 @@ public static class DashboardLogic
                 DefaultIconColor = lite => Dashboards.Value.GetOrCreate(lite).IconColor,
                 DefaultIconName = lite => Dashboards.Value.GetOrCreate(lite).IconName,
             }.Register();
+
+            QueryLogic.Expressions.Register((DashboardEntity d) => d.InToolbar());
+            QueryLogic.Expressions.Register((ToolbarEntity t) => t.Dashboards(), () => typeof(DashboardEntity).NicePluralName());
         });
 
 
@@ -615,6 +633,14 @@ public static class DashboardLogic
         return result;
     }
         
+}
+
+public static class ToolbarDashboardExtensions
+{
+    // Placed in a separate class because DashboardLogic already defines a static member named 'Dashboards'.
+    [AutoExpressionField]
+    public static IQueryable<DashboardEntity> Dashboards(this ToolbarEntity tb) =>
+        As.Expression(() => Database.Query<DashboardEntity>().Where(d => tb.Elements.Any(e => e.Content.Is(d))));
 }
 
 public class CachedQueryDefinition

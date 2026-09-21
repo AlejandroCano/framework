@@ -20,10 +20,10 @@ interface WorkflowActivityModelComponentProps {
   ctx: TypeContext<WorkflowActivityModel>;
 }
 
-export namespace WorkflowActivityModelOptions {
-  export let getViewProps: undefined | ((typeName: string, viewName: string) => Promise<{ name: string, type: string; }[]>);
-  export let navigateToView: undefined | ((typeName: string, viewName: string, props: { [name: string]: any }) => Promise<void>);
-}
+export const WorkflowActivityModelOptions = {
+  getViewProps: undefined as undefined | ((typeName: string, viewName: string) => Promise<{ name: string, type: string; }[]>),
+  navigateToView: undefined as undefined | ((typeName: string, viewName: string, props: { [name: string]: any }) => Promise<void>),
+};
 
 export default function WorkflowActivityModelComponent(p : WorkflowActivityModelComponentProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
@@ -36,7 +36,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
 
       const typeName = p.ctx.value.mainEntityType.cleanName;
 
-      Navigator.viewDispatcher.getViewNames(typeName)
+      Navigator.getViewDispatcher().getViewNames(typeName)
         .then(vn => setViewNames(vn));
 
       fillViewProps();
@@ -146,7 +146,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
   function handleCheckView() {
     const typeName = p.ctx.value.mainEntityType.cleanName;
     const viewName = p.ctx.value.viewName;
-    const props = p.ctx.value.viewNameProps.map(a => a.element).toObject(a => a.name, a => !a.expression ? undefined : eval(a.expression));
+    const props = p.ctx.value.viewNameProps.map(a => a.element).toObject(a => a.name, a => !a.expression ? undefined : new Function("return (" + a.expression + ");")());
 
     const isStaticView = !viewName || viewName == "" || isNamedView(typeName, viewName);
 
@@ -157,7 +157,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
 
         return Navigator.API.fetch(lite).then(entity => {
 
-          const vp = Navigator.viewDispatcher.getViewPromise(entity, viewName || undefined);
+          const vp = Navigator.getViewDispatcher().getViewPromise(entity, viewName || undefined);
           return Navigator.view(entity,
             {
               getViewPromise: e => vp,
@@ -210,7 +210,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
                     </select>
                   </div>
                   <div className="col-sm-6">
-                  <Button variant="success" size="sm" onClick={handleCheckView}>Check View …</Button>
+                  <Button variant="success" size="sm" onClick={handleCheckView}>Check View â€¦</Button>
                   </div>
                 </div>
               }
@@ -314,3 +314,4 @@ function DecompositionComponent(p : { ctx: TypeContext<SubWorkflowEmbedded>, mai
     </fieldset>
   );
 }
+
