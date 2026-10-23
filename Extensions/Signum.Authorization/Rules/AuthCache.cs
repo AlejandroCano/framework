@@ -350,24 +350,24 @@ public abstract class AuthCache<RT, AR, R, K, A, AM> : IManualAuth<K, A>
                 var shouldResources = (from xr in x.Elements(elementName)
                                        let r = toResource(xr.Attribute("Resource")!.Value)
                                        where r != null
-                                       select KeyValuePair.Create(ToKey(r), xr))
+                                       select KeyValuePair.Create(ToKey(r), new { Resource = r, Xml = xr }))
                            .ToDictionaryEx("{0} rules for {1}".FormatWith(typeof(R).NiceName(), role));
 
                 var currentResources = list.Where(a => a.Resource != null).ToDictionary(a => ToKey(a.Resource));
 
                 SqlPreCommand? restSql = Synchronizer.SynchronizeScript(Spacing.Simple, shouldResources, currentResources,
-                    (r, xr) =>
+                    (r, desired) =>
                     {
-                        var resource = ToEntity(r);
-                        var a = parseAllowed(xr, resource);
-                        return table.InsertSqlSync(SetRuleAllowed(new RT { Resource = resource, Role = role }, a), comment: Comment(role, ToEntity(r), a));
+                        var resource = desired.Resource;
+                        var a = parseAllowed(desired.Xml, resource);
+                        return table.InsertSqlSync(SetRuleAllowed(new RT { Resource = resource, Role = role }, a), comment: Comment(role, resource, a));
                     },
-                    (r, rt) => table.DeleteSqlSync(rt, null, Comment(role, ToEntity(r), GetRuleAllowed(rt))),
-                    (r, xr, rt) =>
+                    (r, rt) => table.DeleteSqlSync(rt, null, Comment(role, rt.Resource, GetRuleAllowed(rt))),
+                    (r, desired, rt) =>
                     {
-                        var resource = ToEntity(r);
+                        var resource = rt.Resource;
                         var oldA = GetRuleAllowed(rt);
-                        SetRuleAllowed(rt, parseAllowed(xr, resource));
+                        SetRuleAllowed(rt, parseAllowed(desired.Xml, resource));
                         if (rt.IsGraphModified)
                             return table.UpdateSqlSync(rt, null, comment: Comment(role, resource, oldA, GetRuleAllowed(rt)));
                         return null;
