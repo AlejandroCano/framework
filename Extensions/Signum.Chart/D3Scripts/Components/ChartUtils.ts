@@ -1,4 +1,4 @@
-import { DateTime, DurationUnit, DateTimeUnit } from "luxon"
+﻿import { DateTime, DurationUnit, DateTimeUnit } from "luxon"
 import * as d3 from "d3"
 import { ChartClient, ChartColumn } from "../../ChartClient"
 import { Dic } from "@framework/Globals";
@@ -391,7 +391,7 @@ function complete(values: unknown[], allValues: unknown[], column: ChartColumn<u
   throw new Error();
 }
 
-export function getStackOffset(curveName: string): ((series: d3.Series<any, any>[], order: Iterable<number>) => void) | undefined {
+export function getStackOffset(curveName: string): ((series: d3.Series<any, any>, order: Iterable<number>) => void) | undefined {
   switch (curveName) {
     case "zero": return d3.stackOffsetNone;
     case "expand": return d3.stackOffsetExpand;
