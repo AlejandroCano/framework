@@ -92,6 +92,9 @@ public static class OperationAuthLogic
 
     static bool OperationLogic_AllowOperation(OperationSymbol operationKey, Type entityType, bool inUserInterface, Entity? entity)
     {
+        if (!AuthLogic.IsEnabled || ExecutionMode.InGlobal)
+            return true;
+
         var oa = GetOperationAllowed(operationKey, entityType);
 
         if (entity == null || entity.IsNew)
