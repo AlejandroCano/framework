@@ -78,10 +78,20 @@ internal class UnusedColumnRemover : DbExpressionVisitor
     {
         HashSet<string?> columnsUsed = allColumnsUsed.GetOrCreate(set.Alias); // a veces no se usa
 
+        // These columns determine row equality even when the outer query only counts rows.
+        if (set.Operator != SetOperator.UnionAll)
+            columnsUsed.AddRange(SetColumns(set.Left));
+
         allColumnsUsed.GetOrCreate(set.Left.Alias).AddRange(columnsUsed);
         allColumnsUsed.GetOrCreate(set.Right.Alias).AddRange(columnsUsed);
 
         return base.VisitSetOperator(set);
+    }
+
+    static IEnumerable<string?> SetColumns(SourceWithAliasExpression source)
+    {
+        return source is SelectExpression select ? select.Columns.Select(c => c.Name) :
+            SetColumns(((SetOperatorExpression)source).Left);
     }
 
     protected internal override Expression VisitProjection(ProjectionExpression projection)

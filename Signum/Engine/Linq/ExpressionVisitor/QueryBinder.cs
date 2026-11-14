@@ -131,6 +131,11 @@ internal class QueryBinder : ExpressionVisitor
                        m.GetArgument("collection"), m.TryGetArgument("predicate")?.StripQuotes(), m == root);
                 case "Distinct":
                     return BindDistinct(m.Type, m.GetArgument("source"));
+                case "Union":
+                    if (m.Arguments.Count != 2)
+                        throw new NotSupportedException("Union with an equality comparer is not supported.");
+
+                    return BindUnion(m.Type, m.Arguments[0], m.Arguments[1]);
                 case "Reverse":
                     return BindReverse(m.Type, m.GetArgument("source"));
                 case "Take":
@@ -655,6 +660,52 @@ internal class QueryBinder : ExpressionVisitor
     }
 
 
+    private Expression BindUnion(Type resultType, Expression first, Expression second)
+    {
+        var elementType = resultType.ElementType()!;
+        var isPrimaryKey = elementType.UnNullify() == typeof(PrimaryKey);
+        if (!isPrimaryKey && !schema.Settings.IsDbType(elementType.UnNullify()))
+            throw new NotSupportedException("Union currently supports only scalar values and PrimaryKey. Project the queries to their IDs before calling Union.");
+
+        var left = VisitCastProjection(first);
+        var right = VisitCastProjection(second);
+
+        Expression Nominate(Expression projector)
+        {
+            var value = DbExpressionNominator.FullNominate(isPrimaryKey ? SmartEqualizer.UnwrapPrimaryKey(projector) : projector)!;
+            return value.TryConvert(GetBasicType(value));
+        }
+
+        var leftValue = Nominate(left.Projector);
+        var rightValue = Nominate(right.Projector);
+        if (isPrimaryKey)
+        {
+            if (leftValue.Type == typeof(object) && leftValue.IsNull())
+                leftValue = Expression.Constant(null, rightValue.Type == typeof(object) ? typeof(int?) : rightValue.Type.Nullify());
+            if (rightValue.Type == typeof(object) && rightValue.IsNull())
+                rightValue = Expression.Constant(null, leftValue.Type.Nullify());
+        }
+
+        if (leftValue.Type.UnNullify() != rightValue.Type.UnNullify())
+            throw new NotSupportedException("Union requires matching underlying scalar types in both queries, including the underlying PrimaryKey type.");
+
+        var valueType = leftValue.Type.IsNullable() || rightValue.Type.IsNullable() ? leftValue.Type.Nullify() : leftValue.Type;
+        leftValue = leftValue.TryConvert(valueType);
+        rightValue = rightValue.TryConvert(valueType);
+
+        var leftSelect = new SelectExpression(NextSelectAlias(), false, null,
+            new[] { new ColumnDeclaration("value", leftValue) }, left.Select, null, null, null, 0);
+        var rightSelect = new SelectExpression(NextSelectAlias(), false, null,
+            new[] { new ColumnDeclaration("value", rightValue) }, right.Select, null, null, null, 0);
+        var union = new SetOperatorExpression(SetOperator.Union, leftSelect, rightSelect, NextSelectAlias());
+
+        var alias = NextSelectAlias();
+        var column = new ColumnDeclaration("value", new ColumnExpression(valueType, union.Alias, "value").CopyMetadata(leftValue));
+        return new ProjectionExpression(
+            new SelectExpression(alias, false, null, new[] { column }, union, null, null, null, 0),
+            RestoreWrappedType(column.GetReference(alias).CopyMetadata(leftValue), elementType), null, resultType);
+    }
+
     private Expression BindDistinct(Type resultType, Expression source)
     {
         ProjectionExpression projection = this.VisitCastProjection(source);
@@ -1092,13 +1143,16 @@ internal class QueryBinder : ExpressionVisitor
         ProjectionExpression projection = this.VisitCastProjection(source);
 
         Alias alias = NextSelectAlias();
-        var pc = ColumnProjector.ProjectColumns(projection.Projector, alias, isGroupKey: false, selectTrivialColumns: true);
 
         SubqueryExpression? se;
-        if (schema.Settings.IsDbType(pc.Projector.Type))
-            se = new InExpression(DbExpressionNominator.FullNominate(newItem), new SelectExpression(alias, false, null, pc.Columns, projection.Select, null, null, null, 0));
+        if (schema.Settings.IsDbType(projection.Projector.Type))
+        {
+            var column = new ColumnDeclaration("value", DbExpressionNominator.FullNominate(projection.Projector));
+            se = new InExpression(DbExpressionNominator.FullNominate(newItem), new SelectExpression(alias, false, null, new[] { column }, projection.Select, null, null, null, 0));
+        }
         else
         {
+            var pc = ColumnProjector.ProjectColumns(projection.Projector, alias, isGroupKey: false, selectTrivialColumns: true);
             Expression where = DbExpressionNominator.FullNominate(SmartEqualizer.PolymorphicEqual(projection.Projector, newItem, safeNull: false))!;
             se = new ExistsExpression(new SelectExpression(alias, false, null, pc.Columns, projection.Select, where, null, null, 0));
         }

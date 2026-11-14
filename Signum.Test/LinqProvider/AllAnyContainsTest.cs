@@ -6,6 +6,15 @@ namespace Signum.Test.LinqProvider;
 /// </summary>
 public class AllAnyContainsTest
 {
+    [Fact]
+    public void ContainsComputedScalar()
+    {
+        var query = Database.Query<AlbumEntity>().Select(a => a.Year + 10000);
+        var value = query.First();
+        Assert.True(query.Contains(value));
+        Assert.False(query.Contains(-1));
+    }
+
     public AllAnyContainsTest()
     {
         MusicStarter.StartAndLoad();
