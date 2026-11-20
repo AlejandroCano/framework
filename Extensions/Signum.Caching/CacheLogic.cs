@@ -244,9 +244,9 @@ public static class CacheLogic
         return list;
     }
 
-    public static void ExecuteDataReaderOptionalDependency(this Connector connector, SqlPreCommandSimple preCommand, OnChangeEventHandler change, Action<FieldReader> forEach)
+    public static void ExecuteDataReaderOptionalDependency(this Connector connector, SqlPreCommandSimple preCommand, OnChangeEventHandler change, Action<FieldReader> forEach, bool subscribeToChanges = true)
     {
-        if (WithSqlDependency)
+        if (WithSqlDependency && subscribeToChanges)
         {
             ((SqlServerConnector)connector).ExecuteDataReaderDependency(preCommand, change, StartSqlDependencyAndEnableBrocker, forEach, CommandType.Text);
         }
@@ -719,7 +719,7 @@ public static class CacheLogic
     {
         HashSet<Type> relatedTypes = sb.Schema.Table(type)
             .DependentTables()
-            .Where(a => !a.Value.IsEnum)
+            .Where(a => !a.Value.IsEnum && !LiteCacheSnapshotAttribute.IsEnabled(sb.Settings, a.Value.PropertyRoute, a.Key.Type))
             .Select(t => t.Key.Type)
             .ToHashSet();
 

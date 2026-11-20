@@ -193,7 +193,8 @@ class LiteModelExpressionVisitor : ExpressionVisitor
 
         var pk = CachedTableConstructor.WrapPrimaryKey(id);
 
-        CachedTableConstructor typeConstructor = CacheLogic.GetCacheType(entityType) == CacheType.Cached ?
+        var snapshot = constructor.cachedTable.SubTables?.SingleOrDefaultEx(a => a.ParentColumn == column && a.IsSnapshot);
+        CachedTableConstructor typeConstructor = snapshot != null ? snapshot.Constructor : CacheLogic.GetCacheType(entityType) == CacheType.Cached ?
             CacheLogic.GetCachedTable(entityType).Constructor :
             constructor.cachedTable.SubTables!.SingleEx(a => a.ParentColumn == column).Constructor;
 

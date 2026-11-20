@@ -104,9 +104,9 @@ internal class CachedTableConstructor
      new((controller, aliasGenerator, lastPartialJoin, remainingJoins) =>
          new CachedTable<Entity>(controller, aliasGenerator, lastPartialJoin, remainingJoins));
 
-    static GenericInvoker<Func<ICacheLogicController, AliasGenerator, string, string?, CachedTableBase>> ciCachedSemiTable =
-      new((controller, aliasGenerator, lastPartialJoin, remainingJoins) =>
-          new CachedTableLite<Entity>(controller, aliasGenerator, lastPartialJoin, remainingJoins));
+    static GenericInvoker<Func<ICacheLogicController, AliasGenerator, string, string?, bool, CachedTableBase>> ciCachedSemiTable =
+      new((controller, aliasGenerator, lastPartialJoin, remainingJoins, snapshot) =>
+          new CachedTableLite<Entity>(controller, aliasGenerator, lastPartialJoin, remainingJoins, snapshot));
 
     static GenericInvoker<Func<ICacheLogicController, TableMList, AliasGenerator, string, string?, CachedTableBase>> ciCachedTableMList =
       new((controller, relationalTable, aliasGenerator, lastPartialJoin, remainingJoins) =>
@@ -119,6 +119,9 @@ internal class CachedTableConstructor
 
     public Expression MaterializeField(Field field)
     {
+        if (field.Route != null && field is not FieldMList)
+            LiteCacheSnapshotAttribute.IsEnabled(Schema.Current.Settings, field.Route, field.FieldType.CleanType());
+
         if (field is FieldValue fv)
         {
             var value = GetTupleProperty(fv);
@@ -149,7 +152,7 @@ internal class CachedTableConstructor
             {
                 IColumn column = (IColumn)field;
 
-                return GetEntity(isLite, column, field.FieldType.CleanType(), fr2.CustomLiteModelType);
+                return GetEntity(isLite, column, field.FieldType.CleanType(), fr2.CustomLiteModelType, LiteCacheSnapshotAttribute.IsEnabled(Schema.Current.Settings, field.Route, field.FieldType.CleanType()));
             }
 
             if (field is FieldImplementedBy ib)
@@ -158,7 +161,7 @@ internal class CachedTableConstructor
                 {
                     var column = kvp.Value;
 
-                    Expression entity = GetEntity(isLite, column, kvp.Key, column.CustomLiteModelType);
+                    Expression entity = GetEntity(isLite, column, kvp.Key, column.CustomLiteModelType, LiteCacheSnapshotAttribute.IsEnabled(Schema.Current.Settings, field.Route, kvp.Key));
 
                     return Expression.Condition(Expression.NotEqual(WrapPrimaryKey(GetTupleProperty(column)), NullId),
                         Expression.Convert(entity, field.FieldType),
@@ -262,14 +265,15 @@ internal class CachedTableConstructor
             Expression.Constant(null, fe.FieldType));
     }
 
-    internal Expression GetEntity(bool isLite, IColumn column, Type type, Type? customLiteModelType)
+    internal Expression GetEntity(bool isLite, IColumn column, Type type, Type? customLiteModelType, bool snapshot = false)
     {
+        snapshot |= cachedTable.SubTables?.Any(t => t.ParentColumn == column && t.IsSnapshot) == true;
         Expression id = GetTupleProperty(column);
 
         if (isLite)
         {
             Expression lite;
-            switch (CacheLogic.GetCacheType(type))
+            switch (snapshot ? CacheType.Semi : CacheLogic.GetCacheType(type))
             {
                 case CacheType.Cached:
                     {
@@ -289,7 +293,7 @@ internal class CachedTableConstructor
                         {
                             string lastPartialJoin = CreatePartialInnerJoin(column);
 
-                            ctb = ciCachedSemiTable.GetInvoker(type)(cachedTable.controller, aliasGenerator!, lastPartialJoin, remainingJoins);
+                            ctb = ciCachedSemiTable.GetInvoker(type)(cachedTable.controller, aliasGenerator!, lastPartialJoin, remainingJoins, snapshot);
 
                             if (cachedTable.subTables == null)
                                 cachedTable.subTables = new List<CachedTableBase>();

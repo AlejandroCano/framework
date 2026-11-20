@@ -17,18 +17,80 @@ public static class ScheduleTaskRunner
 
     public static ConcurrentDictionary<ScheduledTaskLogEntity, ScheduledTaskContext> RunningTasks = new ConcurrentDictionary<ScheduledTaskLogEntity, ScheduledTaskContext>();
 
-    static bool running = false;
+    static volatile bool running = false;
     public static bool Running
     {
         get { return running; }
     }
 
 
+    static readonly PlanReloadQueue planReloadQueue = new(ReloadPlan, e => e.LogException(ex =>
+    {
+        ex.ControllerName = "SchedulerLogic";
+        ex.ActionName = "ReloadPlan";
+    }), () => Task.Delay(1000));
+
     internal static void ScheduledTasksLazy_OnReset(object? sender, EventArgs e)
     {
         if (running)
-            using (ExecutionContext.SuppressFlow())
-                Task.Run(() => { Thread.Sleep(1000); ReloadPlan(); });
+            _ = planReloadQueue.Request();
+    }
+
+    sealed class PlanReloadQueue(Action reload, Action<Exception> logException, Func<Task> delay)
+    {
+        readonly object sync = new();
+        bool requested;
+        Task? pendingTask;
+
+        public Task Request()
+        {
+            lock (sync)
+            {
+                requested = true;
+                if (pendingTask != null)
+                    return pendingTask;
+
+                using (ExecutionContext.SuppressFlow())
+                    return pendingTask = Task.Run(Process);
+            }
+        }
+
+        public void CancelPending()
+        {
+            lock (sync)
+                requested = false;
+        }
+
+        async Task Process()
+        {
+            try
+            {
+                await delay();
+                lock (sync)
+                {
+                    if (!requested)
+                        return;
+
+                    requested = false;
+                }
+
+                reload();
+            }
+            catch (Exception e)
+            {
+                logException(e);
+            }
+            finally
+            {
+                lock (sync)
+                {
+                    pendingTask = null;
+                    // Changes received while reloading need one more pass.
+                    if (requested)
+                        _ = Request();
+                }
+            }
+        }
     }
 
     public static HealthCheckResult GetHealthStatus()
@@ -102,8 +164,10 @@ public static class ScheduleTaskRunner
                 return;
 
             running = false;
+            planReloadQueue.CancelPending();
 
             timer.Change(Timeout.Infinite, Timeout.Infinite);
+            NextExecution = null;
             priorityQueue.Clear();
         }
 
@@ -119,33 +183,40 @@ public static class ScheduleTaskRunner
         using (AuthLogic.Disable())
             lock (priorityQueue)
             {
+                if (!running)
+                    return;
+
                 DateTime now = Clock.Now;
                 var lastExecutions = Database.Query<ScheduledTaskLogEntity>().Where(a => a.ScheduledTask != null).GroupBy(a => a.ScheduledTask!).Select(gr => KeyValuePair.Create(
                       gr.Key,
                       gr.Max(a => a.StartTime)
                   )).ToDictionary();
 
-                priorityQueue.Clear();
-                priorityQueue.PushAll(SchedulerLogic.ScheduledTasksLazy.Value.Select(st =>
+                var pendingDates = priorityQueue.GetOrderedList().ToDictionary(p => p.ScheduledTask.ToLite(), p => p.NextDate);
+                var plan = SchedulerLogic.ScheduledTasksLazy.Value.Select(st =>
                 {
-
-                    var previous = lastExecutions.TryGetS(st);
-
-                    var next = previous == null ?
-                        st.Rule.Next(st.Rule.StartingOn) :
-                        st.Rule.Next(previous.Value.Add(SchedulerMargin));
-
-                    bool isMiss = next < now;
-
                     return new ScheduledTaskPair
                     (
                         scheduledTask: st,
-                        nextDate: isMiss ? now : next
+                        nextDate: GetNextDate(st.Rule, lastExecutions.TryGetS(st), pendingDates.TryGetS(st.ToLite()), now)
                     );
-                }));
+                }).ToList();
+
+                priorityQueue.Clear();
+                priorityQueue.PushAll(plan);
 
                 SetTimer();
             }
+    }
+
+    static DateTime GetNextDate(IScheduleRuleEntity rule, DateTime? lastExecution, DateTime? pendingDate, DateTime now)
+    {
+        var next = lastExecution == null ? rule.Next(rule.StartingOn) : rule.Next(lastExecution.Value.Add(SchedulerMargin));
+        if (next >= now)
+            return next;
+
+        // Reloading must not move an already overdue task forward to "now" again.
+        return pendingDate != null && pendingDate.Value < now ? pendingDate.Value : now;
     }
 
     static TimeSpan SchedulerMargin = TimeSpan.FromSeconds(0.5); //stabilize sub-day schedulers
@@ -156,20 +227,25 @@ public static class ScheduleTaskRunner
     static void SetTimer()
     {
         lock (priorityQueue)
-            NextExecution = priorityQueue.Empty ? (DateTime?)null : priorityQueue.Peek().NextDate;
-
-        if (NextExecution == null)
-            timer.Change(Timeout.Infinite, Timeout.Infinite);
-        else
         {
-            TimeSpan ts = NextExecution.Value - Clock.Now;
+            var nextExecution = priorityQueue.Empty ? (DateTime?)null : priorityQueue.Peek().NextDate;
+            if (NextExecution == nextExecution)
+                return;
 
-            if (ts < TimeSpan.Zero)
-                ts = TimeSpan.Zero; // cannot be negative !
-            if (ts.TotalMilliseconds > int.MaxValue)
-                ts = TimeSpan.FromMilliseconds(int.MaxValue);
+            NextExecution = nextExecution;
+            if (NextExecution == null)
+                timer.Change(Timeout.Infinite, Timeout.Infinite);
+            else
+            {
+                TimeSpan ts = NextExecution.Value.Add(SchedulerMargin) - Clock.Now;
 
-            timer.Change(ts.Add(SchedulerMargin), new TimeSpan(-1)); // invoke after the timespan
+                if (ts < TimeSpan.Zero)
+                    ts = TimeSpan.Zero; // cannot be negative !
+                if (ts.TotalMilliseconds > int.MaxValue)
+                    ts = TimeSpan.FromMilliseconds(int.MaxValue);
+
+                timer.Change(ts, Timeout.InfiniteTimeSpan);
+            }
         }
     }
 
@@ -181,9 +257,11 @@ public static class ScheduleTaskRunner
             using (AuthLogic.Disable())
                 lock (priorityQueue)
                 {
-                    if (priorityQueue.Empty)
-                        throw new InvalidOperationException("Inconstency in SchedulerLogic PriorityQueue");
+                    if (!running || priorityQueue.Empty)
+                        return;
 
+                    // The one-shot timer has fired; the next plan must arm it again.
+                    NextExecution = null;
                     DateTime now = Clock.Now;
 
                     while (priorityQueue.Peek().NextDate < now)
