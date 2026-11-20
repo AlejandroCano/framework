@@ -17,18 +17,80 @@ public static class ScheduleTaskRunner
 
     public static ConcurrentDictionary<ScheduledTaskLogEntity, ScheduledTaskContext> RunningTasks = new ConcurrentDictionary<ScheduledTaskLogEntity, ScheduledTaskContext>();
 
-    static bool running = false;
+    static volatile bool running = false;
     public static bool Running
     {
         get { return running; }
     }
 
 
+    static readonly PlanReloadQueue planReloadQueue = new(ReloadPlan, e => e.LogException(ex =>
+    {
+        ex.ControllerName = "SchedulerLogic";
+        ex.ActionName = "ReloadPlan";
+    }), () => Task.Delay(1000));
+
     internal static void ScheduledTasksLazy_OnReset(object? sender, EventArgs e)
     {
         if (running)
-            using (ExecutionContext.SuppressFlow())
-                Task.Run(() => { Thread.Sleep(1000); ReloadPlan(); });
+            _ = planReloadQueue.Request();
+    }
+
+    sealed class PlanReloadQueue(Action reload, Action<Exception> logException, Func<Task> delay)
+    {
+        readonly object sync = new();
+        bool requested;
+        Task? pendingTask;
+
+        public Task Request()
+        {
+            lock (sync)
+            {
+                requested = true;
+                if (pendingTask != null)
+                    return pendingTask;
+
+                using (ExecutionContext.SuppressFlow())
+                    return pendingTask = Task.Run(Process);
+            }
+        }
+
+        public void CancelPending()
+        {
+            lock (sync)
+                requested = false;
+        }
+
+        async Task Process()
+        {
+            try
+            {
+                await delay();
+                lock (sync)
+                {
+                    if (!requested)
+                        return;
+
+                    requested = false;
+                }
+
+                reload();
+            }
+            catch (Exception e)
+            {
+                logException(e);
+            }
+            finally
+            {
+                lock (sync)
+                {
+                    pendingTask = null;
+                    // Changes received while reloading need one more pass.
+                    if (requested)
+                        _ = Request();
+                }
+            }
+        }
     }
 
     public static HealthCheckResult GetHealthStatus()
@@ -102,6 +164,7 @@ public static class ScheduleTaskRunner
                 return;
 
             running = false;
+            planReloadQueue.CancelPending();
 
             timer.Change(Timeout.Infinite, Timeout.Infinite);
             NextExecution = null;
