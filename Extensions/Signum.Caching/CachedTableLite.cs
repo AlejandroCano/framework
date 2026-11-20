@@ -29,9 +29,10 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
         return rows.Value;
     }
 
-    public CachedTableLite(ICacheLogicController controller, AliasGenerator aliasGenerator, string lastPartialJoin, string? remainingJoins)
+    public CachedTableLite(ICacheLogicController controller, AliasGenerator aliasGenerator, string lastPartialJoin, string? remainingJoins, bool snapshot = false)
         : base(controller)
     {
+        this.IsSnapshot = snapshot;
         this.table = Schema.Current.Table(typeof(T));
 
         HashSet<IColumn> columns = new HashSet<IColumn> { table.PrimaryKey };
@@ -42,6 +43,9 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
 
             ToStringColumnsFinderVisitor.GatherColumns(modelConstructor, this.table, columns);
         }
+
+        if (snapshot && columns.Any(c => c.ReferenceTable != null && c is not FieldEnum))
+            throw new NotSupportedException($"Snapshot Lite models must use scalar fields: {typeof(T)}");
 
         var ctr = this.Constructor = new CachedTableConstructor(this, aliasGenerator, columns.ToList());
 
@@ -74,7 +78,8 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
         {
             return SqlServerRetry.Retry(() =>
             {
-                CacheLogic.AssertSqlDependencyStarted();
+                if (!snapshot)
+                    CacheLogic.AssertSqlDependencyStarted();
 
                 Dictionary<PrimaryKey, object> result = new Dictionary<PrimaryKey, object>();
 
@@ -89,7 +94,7 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
                     {
                         var obj = rowReader(fr);
                         result[idGetter(obj)] = obj; //Could be repeated joins
-                    });
+                    }, subscribeToChanges: !snapshot);
                     tr.Commit();
                 }
 
@@ -97,7 +102,8 @@ class CachedTableLite<T> : CachedTableBase where T : Entity
             });
         }, mode: LazyThreadSafetyMode.ExecutionAndPublication);
         
-        semiCachedController = new SemiCachedController<T>(this);
+        if (!snapshot)
+            semiCachedController = new SemiCachedController<T>(this);
     }
 
     public override void SchemaCompleted()

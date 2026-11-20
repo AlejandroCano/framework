@@ -9,6 +9,8 @@ public abstract class CachedTableBase
 {
     public abstract ITable Table { get; }
 
+    public bool IsSnapshot { get; internal set; }
+
     public abstract IColumn? ParentColumn { get; set; }
 
     internal List<CachedTableBase>? subTables;
@@ -47,6 +49,7 @@ public abstract class CachedTableBase
                 CacheLogic.LogWriter.WriteLine("Change {0}".FormatWith(GetType().TypeName()));
 
             Reset();
+            ResetSnapshotDescendants();
 
             Interlocked.Increment(ref invalidations);
 
@@ -55,6 +58,20 @@ public abstract class CachedTableBase
         catch (Exception e)
         {
             e.LogException();
+        }
+    }
+
+    internal void ResetSnapshotDescendants()
+    {
+        if (subTables == null)
+            return;
+
+        foreach (var child in subTables)
+        {
+            if (child.IsSnapshot)
+                child.ResetAll(forceReset: false);
+            else
+                child.ResetSnapshotDescendants();
         }
     }
 
